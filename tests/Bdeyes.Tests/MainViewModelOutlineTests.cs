@@ -157,6 +157,138 @@ public sealed class MainViewModelOutlineTests
     }
 
     [Fact]
+    public async Task PersonFiltersPreserveContextAndComposeWithTheCurrentView()
+    {
+        var issues = new[]
+        {
+            Issue("epic", type: "epic", owner: "lead@constellation.local"),
+            Issue("child", parent: "epic"),
+            Issue(
+                "mine",
+                status: "in_progress",
+                parent: "child",
+                assignee: "Justice",
+                owner: "justice@constellation.local"),
+            Issue("peer"),
+            Issue(
+                "theirs",
+                assignee: "Hermit",
+                owner: "hermit@constellation.local"),
+        };
+        var settingsPath = TemporarySettingsPath();
+        try
+        {
+            var viewModel = new MainViewModel(
+                new StubBdClient(issues),
+                new UserSettingsStore(settingsPath),
+                "C:/workspace");
+            await viewModel.InitializeAsync();
+            viewModel.SelectedNavigation = Navigation(viewModel, DashboardMode.All);
+
+            Assert.Equal(
+                [
+                    ("All assignees", 5),
+                    ("Unassigned", 3),
+                    ("Hermit", 1),
+                    ("Justice", 1),
+                ],
+                viewModel.AssigneeOptions.Select(option => (option.Label, option.Count)));
+
+            viewModel.SelectedAssigneeFilter = viewModel.AssigneeOptions.Single(
+                option => option.Value == "Justice");
+
+            Assert.Equal(["epic", "child", "mine"], viewModel.VisibleRows.Select(row => row.Id));
+            Assert.True(viewModel.VisibleRows.Single(row => row.Id == "epic").IsContextOnly);
+            Assert.True(viewModel.VisibleRows.Single(row => row.Id == "child").IsContextOnly);
+            Assert.True(viewModel.VisibleRows.Single(row => row.Id == "mine").IsDirectMatch);
+
+            viewModel.SelectedAssigneeFilter = viewModel.AssigneeOptions[0];
+            viewModel.SelectedOwnerFilter = viewModel.OwnerOptions.Single(
+                option => option.Value == "justice@constellation.local");
+
+            Assert.Equal(["epic", "child", "mine"], viewModel.VisibleRows.Select(row => row.Id));
+
+            viewModel.SelectedOwnerFilter = viewModel.OwnerOptions.Single(
+                option => option.Kind == PersonFilterKind.Unassigned);
+
+            Assert.Equal(
+                ["child", "peer"],
+                viewModel.VisibleRows.Where(row => row.IsDirectMatch).Select(row => row.Id));
+            Assert.True(viewModel.VisibleRows.Single(row => row.Id == "epic").IsContextOnly);
+
+            viewModel.SelectedOwnerFilter = viewModel.OwnerOptions[0];
+
+            Assert.Equal(["epic", "peer", "theirs"], viewModel.VisibleRows.Select(row => row.Id));
+            Assert.Equal("5 beads", viewModel.ResultCountLabel);
+        }
+        finally
+        {
+            DeleteSettingsDirectory(settingsPath);
+        }
+    }
+
+    [Fact]
+    public async Task RefreshPreservesAvailablePeopleAndClearsMissingSelections()
+    {
+        var settingsPath = TemporarySettingsPath();
+        try
+        {
+            var client = new StubBdClient(
+                [
+                    Issue(
+                        "mine",
+                        assignee: "Justice",
+                        owner: "justice@constellation.local"),
+                ]);
+            var viewModel = new MainViewModel(
+                client,
+                new UserSettingsStore(settingsPath),
+                "C:/workspace");
+            await viewModel.InitializeAsync();
+            viewModel.SelectedNavigation = Navigation(viewModel, DashboardMode.All);
+            viewModel.SelectedAssigneeFilter = viewModel.AssigneeOptions.Single(
+                option => option.Value == "Justice");
+            viewModel.SelectedOwnerFilter = viewModel.OwnerOptions.Single(
+                option => option.Value == "justice@constellation.local");
+
+            client.Issues =
+            [
+                Issue(
+                    "mine",
+                    assignee: "Justice",
+                    owner: "justice@constellation.local"),
+                Issue(
+                    "theirs",
+                    assignee: "Hermit",
+                    owner: "hermit@constellation.local"),
+            ];
+            await viewModel.RefreshCommand.ExecuteAsync(null);
+
+            Assert.Equal("Justice", viewModel.SelectedAssigneeFilter?.Value);
+            Assert.Equal(
+                "justice@constellation.local",
+                viewModel.SelectedOwnerFilter?.Value);
+
+            client.Issues =
+            [
+                Issue(
+                    "theirs",
+                    assignee: "Hermit",
+                    owner: "hermit@constellation.local"),
+            ];
+            await viewModel.RefreshCommand.ExecuteAsync(null);
+
+            Assert.Equal(PersonFilterKind.All, viewModel.SelectedAssigneeFilter?.Kind);
+            Assert.Equal(PersonFilterKind.All, viewModel.SelectedOwnerFilter?.Kind);
+            Assert.Equal(["theirs"], viewModel.VisibleRows.Select(row => row.Id));
+        }
+        finally
+        {
+            DeleteSettingsDirectory(settingsPath);
+        }
+    }
+
+    [Fact]
     public void InspectorBreadcrumbFollowsAuthoritativeContainment()
     {
         var issues = Hierarchy();
@@ -186,6 +318,7 @@ public sealed class MainViewModelOutlineTests
         string status = "open",
         string type = "task",
         string? parent = null,
+        string? owner = null,
         string? assignee = null) =>
         new()
         {
@@ -195,6 +328,7 @@ public sealed class MainViewModelOutlineTests
             IssueType = type,
             Parent = parent,
             Assignee = assignee,
+            Owner = owner,
             CreatedAt = Now.AddDays(-2),
             UpdatedAt = Now,
         };
@@ -216,15 +350,21 @@ public sealed class MainViewModelOutlineTests
 
     private sealed class StubBdClient(IReadOnlyList<BeadIssue> issues) : IBdClient
     {
+        public IReadOnlyList<BeadIssue> Issues { get; set; } = issues;
+
         public Task<BdWorkspaceSnapshot> LoadWorkspaceAsync(
             string requestedWorkspacePath,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(new BdWorkspaceSnapshot(requestedWorkspacePath, "bd 1.1.2", Now, issues));
+            Task.FromResult(new BdWorkspaceSnapshot(
+                requestedWorkspacePath,
+                "bd 1.1.2",
+                Now,
+                Issues));
 
         public Task<BeadIssue> LoadDetailAsync(
             string requestedWorkspacePath,
             string issueId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(issues.Single(issue => issue.Id == issueId));
+            Task.FromResult(Issues.Single(issue => issue.Id == issueId));
     }
 }

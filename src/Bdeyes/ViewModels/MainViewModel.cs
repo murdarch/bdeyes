@@ -23,6 +23,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private BeadAnalyzer? _analyzer;
     private CancellationTokenSource? _detailCancellation;
     private bool _initialized;
+    private bool _rebuildingPersonFilters;
     private Task _settingsSaveTail = Task.CompletedTask;
 
     public MainViewModel()
@@ -48,11 +49,26 @@ public sealed partial class MainViewModel : ViewModelBase
             new NavigationItemViewModel(DashboardMode.All, "All beads", "≡"),
             new NavigationItemViewModel(DashboardMode.Epics, "Epics", "▦"),
         ];
+        AssigneeOptions.Add(new PersonFilterOption(
+            PersonFilterKind.All,
+            "All assignees",
+            null,
+            0));
+        OwnerOptions.Add(new PersonFilterOption(
+            PersonFilterKind.All,
+            "All owners",
+            null,
+            0));
+        SelectedAssigneeFilter = AssigneeOptions[0];
+        SelectedOwnerFilter = OwnerOptions[0];
 
         SelectedNavigation = NavigationItems[0];
     }
 
     public ObservableCollection<NavigationItemViewModel> NavigationItems { get; }
+    public ObservableCollection<PersonFilterOption> AssigneeOptions { get; } = [];
+
+    public ObservableCollection<PersonFilterOption> OwnerOptions { get; } = [];
 
     public ObservableCollection<BeadRowViewModel> VisibleRows { get; } = [];
 
@@ -85,6 +101,12 @@ public sealed partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial string SearchText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial PersonFilterOption? SelectedAssigneeFilter { get; set; }
+
+    [ObservableProperty]
+    public partial PersonFilterOption? SelectedOwnerFilter { get; set; }
 
     [ObservableProperty]
     public partial NavigationItemViewModel? SelectedNavigation { get; set; }
@@ -262,6 +284,21 @@ public sealed partial class MainViewModel : ViewModelBase
     partial void OnIsLoadingChanged(bool value) => RefreshCommand.NotifyCanExecuteChanged();
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
+    partial void OnSelectedAssigneeFilterChanged(PersonFilterOption? value)
+    {
+        if (!_rebuildingPersonFilters)
+        {
+            ApplyFilter();
+        }
+    }
+
+    partial void OnSelectedOwnerFilterChanged(PersonFilterOption? value)
+    {
+        if (!_rebuildingPersonFilters)
+        {
+            ApplyFilter();
+        }
+    }
 
     partial void OnSelectedNavigationChanged(NavigationItemViewModel? value)
     {
@@ -362,6 +399,7 @@ public sealed partial class MainViewModel : ViewModelBase
             orphan.SetDepth(0);
             _rootRows.Add(orphan);
         }
+        RebuildPersonFilters();
 
         _expandedIds.IntersectWith(_rowsById.Keys);
         WorkspaceName = new DirectoryInfo(snapshot.WorkspacePath).Name;
@@ -375,9 +413,12 @@ public sealed partial class MainViewModel : ViewModelBase
         UpdateCounts();
         ApplyFilter();
 
-        SelectedRow = selectedId is not null && _rowsById.TryGetValue(selectedId, out var selected)
-            ? selected
-            : null;
+        SelectedRow =
+            selectedId is not null &&
+            _includedIds.Contains(selectedId) &&
+            _rowsById.TryGetValue(selectedId, out var selected)
+                ? selected
+                : null;
     }
 
     private async Task LoadDetailAsync(
@@ -402,6 +443,79 @@ public sealed partial class MainViewModel : ViewModelBase
             {
                 target.ApplyError(FriendlyMessage(exception));
             }
+        }
+    }
+
+    private void RebuildPersonFilters()
+    {
+        var assigneeOptions = BuildPersonFilterOptions(
+            _allRows.Select(row => row.Issue.Assignee),
+            "All assignees");
+        var ownerOptions = BuildPersonFilterOptions(
+            _allRows.Select(row => row.Issue.Owner),
+            "All owners");
+        var previousAssignee = SelectedAssigneeFilter;
+        var previousOwner = SelectedOwnerFilter;
+        var nextAssignee = assigneeOptions.FirstOrDefault(
+            option => option.RepresentsSameSelection(previousAssignee)) ?? assigneeOptions[0];
+        var nextOwner = ownerOptions.FirstOrDefault(
+            option => option.RepresentsSameSelection(previousOwner)) ?? ownerOptions[0];
+
+        _rebuildingPersonFilters = true;
+        try
+        {
+            ReplaceOptions(AssigneeOptions, assigneeOptions);
+            ReplaceOptions(OwnerOptions, ownerOptions);
+            SelectedAssigneeFilter = nextAssignee;
+            SelectedOwnerFilter = nextOwner;
+        }
+        finally
+        {
+            _rebuildingPersonFilters = false;
+        }
+    }
+
+    private static IReadOnlyList<PersonFilterOption> BuildPersonFilterOptions(
+        IEnumerable<string?> candidates,
+        string allLabel)
+    {
+        var values = candidates.ToArray();
+        var options = new List<PersonFilterOption>
+        {
+            new(PersonFilterKind.All, allLabel, null, values.Length),
+        };
+        var unassignedCount = values.Count(string.IsNullOrWhiteSpace);
+        if (unassignedCount > 0)
+        {
+            options.Add(new PersonFilterOption(
+                PersonFilterKind.Unassigned,
+                "Unassigned",
+                null,
+                unassignedCount));
+        }
+
+        options.AddRange(
+            values
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value!.Trim())
+                .GroupBy(value => value, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new PersonFilterOption(
+                    PersonFilterKind.Person,
+                    group.Key,
+                    group.Key,
+                    group.Count())));
+        return options;
+    }
+
+    private static void ReplaceOptions(
+        ObservableCollection<PersonFilterOption> target,
+        IEnumerable<PersonFilterOption> replacement)
+    {
+        target.Clear();
+        foreach (var option in replacement)
+        {
+            target.Add(option);
         }
     }
 
@@ -435,6 +549,11 @@ public sealed partial class MainViewModel : ViewModelBase
 
         var mode = SelectedNavigation?.Mode ?? DashboardMode.Now;
         var query = SearchText.Trim();
+        var assigneeFilter = SelectedAssigneeFilter;
+        var ownerFilter = SelectedOwnerFilter;
+        var hasPersonFilter =
+            assigneeFilter is { IsRestrictive: true } ||
+            ownerFilter is { IsRestrictive: true };
         IEnumerable<BeadRowViewModel> directRows = mode switch
         {
             DashboardMode.Now => _allRows.Where(row => row.Facts.IsActive),
@@ -448,6 +567,15 @@ public sealed partial class MainViewModel : ViewModelBase
             DashboardMode.Epics => _allRows.Where(BelongsToOpenEpic),
             _ => _allRows,
         };
+        if (assigneeFilter is { IsRestrictive: true })
+        {
+            directRows = directRows.Where(row => assigneeFilter.Matches(row.Issue.Assignee));
+        }
+
+        if (ownerFilter is { IsRestrictive: true })
+        {
+            directRows = directRows.Where(row => ownerFilter.Matches(row.Issue.Owner));
+        }
 
         if (query.Length > 0)
         {
@@ -455,7 +583,10 @@ public sealed partial class MainViewModel : ViewModelBase
         }
 
         var direct = directRows.ToArray();
-        var includeEpicSubtrees = mode == DashboardMode.Epics && query.Length == 0;
+        var includeEpicSubtrees =
+            mode == DashboardMode.Epics &&
+            query.Length == 0 &&
+            !hasPersonFilter;
         var projection = OutlineProjection.Create(
             direct.Select(row => row.Id),
             _analyzer,
@@ -464,6 +595,7 @@ public sealed partial class MainViewModel : ViewModelBase
         _includedIds.UnionWith(projection.IncludedIds);
 
         var focusedView =
+            hasPersonFilter ||
             query.Length > 0 ||
             mode is DashboardMode.Now or
                 DashboardMode.Blocked or

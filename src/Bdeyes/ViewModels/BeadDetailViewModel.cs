@@ -9,33 +9,51 @@ namespace Bdeyes.ViewModels;
 
 public sealed partial class BeadDetailViewModel : ViewModelBase
 {
-    private readonly BeadAnalyzer _analyzer;
     private readonly Action<string> _openIssue;
 
     public BeadDetailViewModel(
         BeadRowViewModel row,
         BeadAnalyzer analyzer,
-        Action<string> openIssue)
+        Action<string> openIssue,
+        Action<string> revealInOutline)
     {
         Row = row;
         Issue = row.Issue;
-        _analyzer = analyzer;
         _openIssue = openIssue;
 
-        Children = new ObservableCollection<RelatedBeadViewModel>(
-            row.Facts.Children.Select(child => Related(child, "child")));
+        var path = analyzer.AncestorsOf(Issue.Id).Append(Issue).ToArray();
+        Breadcrumbs = new ObservableCollection<BreadcrumbItemViewModel>(
+            path.Select((issue, index) => new BreadcrumbItemViewModel(
+                issue.Id,
+                issue.Title,
+                hasLeadingSeparator: index > 0,
+                isCurrent: index == path.Length - 1,
+                () => openIssue(issue.Id))));
+
         Blockers = new ObservableCollection<RelatedBeadViewModel>(
             row.Facts.ActiveBlockerIds.Select(id =>
             {
                 var blocker = analyzer.Find(id);
                 return blocker is null
-                    ? new RelatedBeadViewModel(id, "Unavailable in this snapshot", "blocking", Palette.Blocked, () => openIssue(id))
+                    ? new RelatedBeadViewModel(
+                        id,
+                        "Unavailable in this snapshot",
+                        "blocking",
+                        Palette.Blocked,
+                        () => openIssue(id))
                     : Related(blocker, "blocking");
             }));
         Links = new ObservableCollection<RelatedBeadViewModel>(
             Issue.Dependencies
-                .Where(dependency => !string.Equals(dependency.Type, "parent-child", StringComparison.OrdinalIgnoreCase))
-                .Where(dependency => !row.Facts.ActiveBlockerIds.Contains(dependency.DependsOnId, StringComparer.OrdinalIgnoreCase))
+                .Where(dependency =>
+                    !string.Equals(
+                        dependency.Type,
+                        "parent-child",
+                        StringComparison.OrdinalIgnoreCase))
+                .Where(dependency =>
+                    !row.Facts.ActiveBlockerIds.Contains(
+                        dependency.DependsOnId,
+                        StringComparer.OrdinalIgnoreCase))
                 .Select(dependency =>
                 {
                     var target = analyzer.Find(dependency.DependsOnId);
@@ -49,6 +67,9 @@ public sealed partial class BeadDetailViewModel : ViewModelBase
                         : Related(target, dependency.Type);
                 }));
 
+        var childFacts = row.Facts.Children.Select(analyzer.Analyze).ToArray();
+        ChildSummary = BuildChildSummary(childFacts);
+        RevealChildrenCommand = new RelayCommand(() => revealInOutline(Issue.Id));
         Description = Issue.Description ?? string.Empty;
         Design = Issue.Design ?? string.Empty;
         AcceptanceCriteria = Issue.AcceptanceCriteria ?? string.Empty;
@@ -73,7 +94,8 @@ public sealed partial class BeadDetailViewModel : ViewModelBase
 
     public string ActivityLabel => Row.ActivityLabel;
 
-    public string AssigneeLabel => string.IsNullOrWhiteSpace(Issue.Assignee) ? "Unclaimed" : Issue.Assignee!;
+    public string AssigneeLabel =>
+        string.IsNullOrWhiteSpace(Issue.Assignee) ? "Unclaimed" : Issue.Assignee!;
 
     public string OwnerLabel => string.IsNullOrWhiteSpace(Issue.Owner) ? "No owner" : Issue.Owner!;
 
@@ -93,6 +115,8 @@ public sealed partial class BeadDetailViewModel : ViewModelBase
 
     public string LabelsText { get; }
 
+    public string ChildSummary { get; }
+
     public IBrush StatusBrush => Row.StatusBrush;
 
     public IBrush StatusBackground => Row.StatusBackground;
@@ -109,7 +133,9 @@ public sealed partial class BeadDetailViewModel : ViewModelBase
 
     public bool HasLabels => !string.IsNullOrWhiteSpace(LabelsText);
 
-    public bool HasChildren => Children.Count > 0;
+    public bool HasBreadcrumbs => Breadcrumbs.Count > 1;
+
+    public bool HasChildren => Row.Facts.Children.Count > 0;
 
     public bool HasBlockers => Blockers.Count > 0;
 
@@ -119,7 +145,7 @@ public sealed partial class BeadDetailViewModel : ViewModelBase
 
     public bool HasDependents => Dependents.Count > 0;
 
-    public ObservableCollection<RelatedBeadViewModel> Children { get; }
+    public ObservableCollection<BreadcrumbItemViewModel> Breadcrumbs { get; }
 
     public ObservableCollection<RelatedBeadViewModel> Blockers { get; }
 
@@ -128,6 +154,8 @@ public sealed partial class BeadDetailViewModel : ViewModelBase
     public ObservableCollection<RelatedBeadViewModel> Dependents { get; } = [];
 
     public ObservableCollection<CommentViewModel> Comments { get; } = [];
+
+    public IRelayCommand RevealChildrenCommand { get; }
 
     [ObservableProperty]
     public partial bool IsLoading { get; set; } = true;
@@ -150,7 +178,9 @@ public sealed partial class BeadDetailViewModel : ViewModelBase
         }
 
         Dependents.Clear();
-        foreach (var dependent in detail.Dependents.OrderBy(dependent => dependent.Priority).ThenBy(dependent => dependent.Title))
+        foreach (var dependent in detail.Dependents
+                     .OrderBy(dependent => dependent.Priority)
+                     .ThenBy(dependent => dependent.Title))
         {
             Dependents.Add(new RelatedBeadViewModel(
                 dependent.Id,
@@ -178,6 +208,70 @@ public sealed partial class BeadDetailViewModel : ViewModelBase
             relationship,
             Palette.ForStatus(issue.Status, BlockSeverity.None).Foreground,
             () => _openIssue(issue.Id));
+
+    private static string BuildChildSummary(IReadOnlyList<BeadFacts> children)
+    {
+        if (children.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var parts = new List<string>
+        {
+            $"{children.Count} child{(children.Count == 1 ? string.Empty : "ren")}",
+            $"{children.Count(child => child.IsClosed)} closed",
+        };
+        var active = children.Count(child => child.IsActive);
+        var blocked = children.Count(child => child.BlockSeverity != BlockSeverity.None);
+        var ready = children.Count(child => child.IsUnclaimed);
+        if (active > 0)
+        {
+            parts.Add($"{active} active");
+        }
+
+        if (blocked > 0)
+        {
+            parts.Add($"{blocked} blocked");
+        }
+
+        if (ready > 0)
+        {
+            parts.Add($"{ready} ready");
+        }
+
+        return string.Join("  ·  ", parts);
+    }
+}
+
+public sealed class BreadcrumbItemViewModel
+{
+    public BreadcrumbItemViewModel(
+        string id,
+        string title,
+        bool hasLeadingSeparator,
+        bool isCurrent,
+        Action open)
+    {
+        Id = id;
+        Title = title;
+        HasLeadingSeparator = hasLeadingSeparator;
+        IsCurrent = isCurrent;
+        OpenCommand = new RelayCommand(open);
+    }
+
+    public string Id { get; }
+
+    public string Title { get; }
+
+    public bool HasLeadingSeparator { get; }
+
+    public bool IsCurrent { get; }
+
+    public bool CanOpen => !IsCurrent;
+
+    public IRelayCommand OpenCommand { get; }
+
+    public string AutomationName => IsCurrent ? $"Current bead {Id}" : $"Open ancestor {Id}: {Title}";
 }
 
 public sealed class RelatedBeadViewModel

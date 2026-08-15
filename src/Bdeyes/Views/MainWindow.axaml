@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Bdeyes.ViewModels"
+        xmlns:views="using:Bdeyes.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
@@ -10,7 +11,7 @@
         x:DataType="vm:MainViewModel"
         Width="1480"
         Height="900"
-        MinWidth="1080"
+        MinWidth="1280"
         MinHeight="700"
         WindowStartupLocation="CenterScreen"
         Icon="/Assets/bdeyes.ico"
@@ -81,19 +82,29 @@
             <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
             <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
         </Style>
-        <Style Selector="Button.metric">
+        <Style Selector="Button.stat">
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="VerticalContentAlignment" Value="Stretch" />
-            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Padding" Value="15" />
-            <Setter Property="MinHeight" Value="92" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Padding" Value="13,8" />
+            <Setter Property="MinHeight" Value="42" />
         </Style>
-        <Style Selector="Button.metric:pointerover">
+        <Style Selector="Button.stat:pointerover">
             <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+        </Style>
+        <Style Selector="Button.disclosure">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Width" Value="23" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontSize" Value="15" />
+        </Style>
+        <Style Selector="Button.disclosure:pointerover">
+            <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
         </Style>
         <Style Selector="Button.icon">
             <Setter Property="Background" Value="Transparent" />
@@ -119,6 +130,21 @@
         <Style Selector="Button.related:pointerover">
             <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
             <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+        </Style>
+        <Style Selector="Button.breadcrumb">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource ReadyBrush}" />
+            <Setter Property="Padding" Value="3,1" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="Button.breadcrumb:pointerover">
+            <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+        </Style>
+        <Style Selector="Button.breadcrumb:disabled">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+            <Setter Property="Opacity" Value="1" />
         </Style>
 
         <Style Selector="TextBox.search">
@@ -154,21 +180,22 @@
         </Style>
 
         <Style Selector="ListBox.rows">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-        </Style>
-        <Style Selector="ListBox.rows ListBoxItem">
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="CornerRadius" Value="9" />
+        </Style>
+        <Style Selector="ListBox.rows ListBoxItem">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
             <Setter Property="Padding" Value="0" />
-            <Setter Property="Margin" Value="0,0,0,9" />
+            <Setter Property="Margin" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="MinHeight" Value="43" />
         </Style>
         <Style Selector="ListBox.rows ListBoxItem:pointerover">
             <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
         </Style>
         <Style Selector="ListBox.rows ListBoxItem:selected">
             <Setter Property="Background" Value="#1A2B35" />
@@ -176,7 +203,7 @@
         </Style>
     </Window.Styles>
 
-    <Grid ColumnDefinitions="260,*,Auto">
+    <Grid ColumnDefinitions="240,*,Auto">
         <!-- Workspace rail -->
         <Border Grid.Column="0"
                 Background="{StaticResource RailBackgroundBrush}"
@@ -467,7 +494,7 @@
             <Grid Grid.Row="2"
                   IsVisible="{Binding HasSnapshot}"
                   RowDefinitions="Auto,Auto,*"
-                  Margin="26,23,26,0">
+                  Margin="22,23,22,0">
                 <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                     <StackPanel Spacing="4">
                         <TextBlock Text="{Binding ViewEyebrow}" Classes="eyebrow" />
@@ -489,202 +516,241 @@
                     </Border>
                 </Grid>
 
-                <Grid Grid.Row="1"
-                      ColumnDefinitions="*,*,*,*"
-                      ColumnSpacing="10"
-                      Margin="0,19,0,18">
-                    <Button Classes="metric"
-                            Command="{Binding ShowNowCommand}"
-                            AutomationProperties.Name="Show work in progress">
-                        <Grid RowDefinitions="Auto,*">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="COOKING" Classes="section-title" />
-                                <Ellipse Grid.Column="1" Width="7" Height="7" Fill="{StaticResource AccentBrush}" />
-                            </Grid>
-                            <StackPanel Grid.Row="1" Margin="0,8,0,0">
+                <Border Grid.Row="1"
+                        Margin="0,15,0,12"
+                        Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="9"
+                        Padding="4">
+                    <Grid ColumnDefinitions="*,*,*,*">
+                        <Button Classes="stat"
+                                Command="{Binding ShowNowCommand}"
+                                AutomationProperties.Name="Show work in progress">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Ellipse Width="7" Height="7" Fill="{StaticResource AccentBrush}" />
                                 <TextBlock Text="{Binding ActiveCount}"
-                                           FontSize="25"
+                                           FontSize="17"
                                            FontWeight="SemiBold"
                                            Foreground="{StaticResource AccentBrush}" />
-                                <TextBlock Text="claimed and in progress" Classes="muted" FontSize="10.5" />
+                                <TextBlock Text="cooking" Classes="muted" FontSize="10.5" VerticalAlignment="Center" />
                             </StackPanel>
-                        </Grid>
-                    </Button>
-                    <Button Grid.Column="1"
-                            Classes="metric"
-                            Command="{Binding ShowUnclaimedCommand}"
-                            AutomationProperties.Name="Show ready unclaimed work">
-                        <Grid RowDefinitions="Auto,*">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="READY" Classes="section-title" />
-                                <Ellipse Grid.Column="1" Width="7" Height="7" Fill="{StaticResource ReadyBrush}" />
-                            </Grid>
-                            <StackPanel Grid.Row="1" Margin="0,8,0,0">
+                        </Button>
+                        <Button Grid.Column="1"
+                                Classes="stat"
+                                Command="{Binding ShowUnclaimedCommand}"
+                                AutomationProperties.Name="Show ready unclaimed work">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Ellipse Width="7" Height="7" Fill="{StaticResource ReadyBrush}" />
                                 <TextBlock Text="{Binding ReadyCount}"
-                                           FontSize="25"
+                                           FontSize="17"
                                            FontWeight="SemiBold"
                                            Foreground="{StaticResource ReadyBrush}" />
-                                <TextBlock Text="unclaimed, no blocker" Classes="muted" FontSize="10.5" />
+                                <TextBlock Text="ready" Classes="muted" FontSize="10.5" VerticalAlignment="Center" />
                             </StackPanel>
-                        </Grid>
-                    </Button>
-                    <Button Grid.Column="2"
-                            Classes="metric"
-                            Command="{Binding ShowBlockedCommand}"
-                            AutomationProperties.Name="Show blocked work">
-                        <Grid RowDefinitions="Auto,*">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="BLOCKED" Classes="section-title" />
-                                <Ellipse Grid.Column="1" Width="7" Height="7" Fill="{StaticResource BlockedBrush}" />
-                            </Grid>
-                            <StackPanel Grid.Row="1" Margin="0,8,0,0">
+                        </Button>
+                        <Button Grid.Column="2"
+                                Classes="stat"
+                                Command="{Binding ShowBlockedCommand}"
+                                AutomationProperties.Name="Show blocked work">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Ellipse Width="7" Height="7" Fill="{StaticResource BlockedBrush}" />
                                 <TextBlock Text="{Binding BlockedCount}"
-                                           FontSize="25"
+                                           FontSize="17"
                                            FontWeight="SemiBold"
                                            Foreground="{StaticResource BlockedBrush}" />
-                                <TextBlock Text="stopped or split paths" Classes="muted" FontSize="10.5" />
+                                <TextBlock Text="affected paths" Classes="muted" FontSize="10.5" VerticalAlignment="Center" />
                             </StackPanel>
-                        </Grid>
-                    </Button>
-                    <Button Grid.Column="3"
-                            Classes="metric"
-                            Command="{Binding ShowAgingCommand}"
-                            AutomationProperties.Name="Show aging work">
-                        <Grid RowDefinitions="Auto,*">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Text="QUIET" Classes="section-title" />
-                                <Ellipse Grid.Column="1" Width="7" Height="7" Fill="{StaticResource StaleBrush}" />
-                            </Grid>
-                            <StackPanel Grid.Row="1" Margin="0,8,0,0">
+                        </Button>
+                        <Button Grid.Column="3"
+                                Classes="stat"
+                                Command="{Binding ShowAgingCommand}"
+                                AutomationProperties.Name="Show aging work">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Ellipse Width="7" Height="7" Fill="{StaticResource StaleBrush}" />
                                 <TextBlock Text="{Binding StaleCount}"
-                                           FontSize="25"
+                                           FontSize="17"
                                            FontWeight="SemiBold"
                                            Foreground="{StaticResource StaleBrush}" />
-                                <TextBlock Text="no activity for 7+ days" Classes="muted" FontSize="10.5" />
+                                <TextBlock Text="quiet" Classes="muted" FontSize="10.5" VerticalAlignment="Center" />
                             </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="2" RowDefinitions="Auto,*">
+                    <Border Grid.Row="0"
+                            Background="#111A23"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1,1,1,0"
+                            CornerRadius="9,9,0,0"
+                            Padding="13,7">
+                        <Grid ColumnDefinitions="*,90,70,140">
+                            <TextBlock Text="WORK"
+                                       Classes="section-title"
+                                       FontSize="9" />
+                            <TextBlock Grid.Column="1"
+                                       Text="WHO"
+                                       Classes="section-title"
+                                       FontSize="9" />
+                            <TextBlock Grid.Column="2"
+                                       Text="UPDATED"
+                                       Classes="section-title"
+                                       FontSize="9" />
+                            <TextBlock Grid.Column="3"
+                                       Text="SIGNAL"
+                                       Classes="section-title"
+                                       FontSize="9" />
                         </Grid>
-                    </Button>
-                </Grid>
+                    </Border>
 
-                <Grid Grid.Row="2">
-                    <ListBox ItemsSource="{Binding VisibleRows}"
-                             SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
-                             Classes="rows"
-                             AutomationProperties.Name="Beads in current view"
-                             Padding="0,0,8,20"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:BeadRowViewModel">
-                                <Grid ColumnDefinitions="5,*,Auto" MinHeight="104">
-                                    <Border Background="{Binding StatusBrush}"
-                                            CornerRadius="10,0,0,10" />
-                                    <StackPanel Grid.Column="1"
-                                                Margin="16,13,16,13"
-                                                Spacing="7">
-                                        <TextBlock Text="{Binding ParentTitle}"
-                                                   IsVisible="{Binding HasParent}"
-                                                   Classes="faint"
-                                                   FontSize="9.5"
-                                                   TextTrimming="CharacterEllipsis" />
-                                        <StackPanel Orientation="Horizontal" Spacing="7">
-                                            <TextBlock Text="{Binding Id}"
-                                                       Foreground="{Binding StatusBrush}"
-                                                       FontWeight="SemiBold"
-                                                       FontSize="10.5" />
-                                            <Border Background="#22303D" CornerRadius="5" Padding="5,1">
-                                                <TextBlock Text="{Binding PriorityLabel}"
-                                                           Classes="muted"
-                                                           FontSize="9" />
-                                            </Border>
-                                            <Border Background="#22303D" CornerRadius="5" Padding="5,1">
-                                                <TextBlock Text="{Binding TypeLabel}"
-                                                           Classes="muted"
-                                                           FontSize="9" />
-                                            </Border>
-                                            <Border Background="{Binding StatusBackground}"
-                                                    CornerRadius="5"
-                                                    Padding="5,1">
-                                                <TextBlock Text="{Binding StatusLabel}"
+                    <Grid Grid.Row="1">
+                        <views:OutlineListBox x:Name="BeadList"
+                                              ItemsSource="{Binding VisibleRows}"
+                                              SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                                              Classes="rows"
+                                              AutomationProperties.Name="Beads in current outline"
+                                              Padding="0"
+                                              CornerRadius="0,0,9,9"
+                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <views:OutlineListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel />
+                                </ItemsPanelTemplate>
+                            </views:OutlineListBox.ItemsPanel>
+                            <views:OutlineListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:BeadRowViewModel">
+                                    <Grid Height="43"
+                                          ColumnDefinitions="*,90,70,140">
+                                        <Border Width="3"
+                                                HorizontalAlignment="Left"
+                                                Background="{Binding StatusBrush}" />
+
+                                        <Grid Grid.Column="0"
+                                              Margin="8,0,10,0"
+                                              ClipToBounds="True">
+                                            <Border Width="1"
+                                                    HorizontalAlignment="Left"
+                                                    Margin="{Binding GuideMargin}"
+                                                    Background="{StaticResource BorderStrongBrush}"
+                                                    IsVisible="{Binding HasParent}" />
+                                            <Grid Margin="{Binding IndentMargin}"
+                                                  ColumnDefinitions="23,13,Auto,Auto,Auto,*,Auto"
+                                                  VerticalAlignment="Center">
+                                                <Button Grid.Column="0"
+                                                        Classes="disclosure"
+                                                        IsVisible="{Binding HasVisibleChildren}"
+                                                        Content="{Binding ExpandGlyph}"
+                                                        Command="{Binding ToggleExpansionCommand}"
+                                                        Focusable="False"
+                                                        IsTabStop="False"
+                                                        AutomationProperties.Name="{Binding DisclosureAutomationName}"
+                                                        ToolTip.Tip="Expand or collapse" />
+                                                <Ellipse Grid.Column="1"
+                                                         Width="6"
+                                                         Height="6"
+                                                         Fill="{Binding StatusBrush}" />
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding Id}"
                                                            Foreground="{Binding StatusBrush}"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="10"
+                                                           MinWidth="62"
+                                                           Margin="0,0,7,0"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="3"
+                                                           Text="{Binding PriorityLabel}"
+                                                           Classes="faint"
                                                            FontSize="9"
-                                                           FontWeight="SemiBold" />
-                                            </Border>
-                                            <Border IsVisible="{Binding HasBlockState}"
-                                                    Background="{StaticResource BlockedDimBrush}"
-                                                    CornerRadius="5"
-                                                    Padding="5,1">
-                                                <TextBlock Text="{Binding BlockLabel}"
-                                                           Foreground="{StaticResource BlockedBrush}"
+                                                           Margin="0,0,7,0"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="4"
+                                                           Text="{Binding TypeLabel}"
+                                                           Classes="faint"
                                                            FontSize="9"
-                                                           FontWeight="SemiBold" />
-                                            </Border>
-                                        </StackPanel>
-                                        <TextBlock Text="{Binding Title}"
-                                                   FontSize="14"
-                                                   FontWeight="SemiBold"
-                                                   TextWrapping="Wrap" />
-                                        <StackPanel Orientation="Horizontal" Spacing="13">
-                                            <TextBlock Text="{Binding AssigneeLabel}"
-                                                       Classes="muted"
-                                                       FontSize="10.5" />
-                                            <TextBlock Text="{Binding ActivityLabel}"
-                                                       Classes="faint"
-                                                       FontSize="10.5"
-                                                       ToolTip.Tip="{Binding ActivityTooltip}" />
-                                            <TextBlock Text="{Binding ChildProgress}"
-                                                       IsVisible="{Binding HasChildren}"
-                                                       Classes="faint"
-                                                       FontSize="10.5" />
-                                            <TextBlock Text="{Binding BlockerSummary}"
-                                                       IsVisible="{Binding HasBlockerSummary}"
-                                                       Foreground="{StaticResource BlockedBrush}"
-                                                       FontSize="10.5"
-                                                       TextTrimming="CharacterEllipsis" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                    <TextBlock Grid.Column="2"
-                                               Text="›"
-                                               Classes="faint"
-                                               FontSize="22"
-                                               Margin="0,0,14,0"
-                                               VerticalAlignment="Center" />
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                                                           Margin="0,0,7,0"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="5"
+                                                           Text="{Binding Title}"
+                                                           FontSize="11.5"
+                                                           FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip.Tip="{Binding Title}"
+                                                           VerticalAlignment="Center" />
+                                                <Border Grid.Column="6"
+                                                        IsVisible="{Binding ShowContextBadge}"
+                                                        Background="#202C37"
+                                                        CornerRadius="4"
+                                                        Padding="5,1"
+                                                        Margin="7,0,0,0">
+                                                    <TextBlock Text="context"
+                                                               Classes="faint"
+                                                               FontSize="8.5" />
+                                                </Border>
+                                            </Grid>
+                                        </Grid>
 
-                    <StackPanel IsVisible="{Binding IsResultEmpty}"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Spacing="7">
-                        <Border Width="42"
-                                Height="42"
-                                HorizontalAlignment="Center"
-                                CornerRadius="14"
-                                Background="{StaticResource SurfaceBrush}">
-                            <TextBlock Text="·"
-                                       FontSize="31"
-                                       Foreground="{StaticResource TextFaintBrush}"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"
-                                       Margin="0,-11,0,0" />
-                        </Border>
-                        <TextBlock Text="{Binding EmptyTitle}"
-                                   FontSize="16"
-                                   FontWeight="SemiBold"
-                                   HorizontalAlignment="Center" />
-                        <TextBlock Text="{Binding EmptyDescription}"
-                                   Classes="muted"
-                                   FontSize="11.5"
-                                   HorizontalAlignment="Center" />
-                    </StackPanel>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding AssigneeLabel}"
+                                                   Classes="muted"
+                                                   FontSize="10.5"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip.Tip="{Binding AssigneeLabel}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding UpdatedLabel}"
+                                                   Classes="faint"
+                                                   FontSize="10"
+                                                   ToolTip.Tip="{Binding ActivityTooltip}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="3"
+                                                   Text="{Binding SignalLabel}"
+                                                   Foreground="{Binding SignalBrush}"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip.Tip="{Binding SignalTooltip}"
+                                                   Margin="0,0,8,0"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </views:OutlineListBox.ItemTemplate>
+                        </views:OutlineListBox>
+
+                        <StackPanel IsVisible="{Binding IsResultEmpty}"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Spacing="7">
+                            <Border Width="42"
+                                    Height="42"
+                                    HorizontalAlignment="Center"
+                                    CornerRadius="14"
+                                    Background="{StaticResource SurfaceBrush}">
+                                <TextBlock Text="·"
+                                           FontSize="31"
+                                           Foreground="{StaticResource TextFaintBrush}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Margin="0,-11,0,0" />
+                            </Border>
+                            <TextBlock Text="{Binding EmptyTitle}"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center" />
+                            <TextBlock Text="{Binding EmptyDescription}"
+                                       Classes="muted"
+                                       FontSize="11.5"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
                 </Grid>
+
             </Grid>
         </Grid>
 
         <!-- Persistent detail pane -->
         <Border Grid.Column="2"
-                Width="440"
+                Width="400"
                 IsVisible="{Binding HasSelection}"
                 Background="{StaticResource RailBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
@@ -695,7 +761,7 @@
                         Padding="19,15">
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel>
-                            <TextBlock Text="BEAD DETAIL" Classes="section-title" />
+                            <TextBlock Text="BEAD INSPECTOR" Classes="section-title" />
                             <TextBlock Text="{Binding Detail.Id}"
                                        Foreground="{StaticResource AccentBrush}"
                                        FontSize="11"
@@ -715,6 +781,31 @@
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="20,19,20,30" Spacing="19">
                         <StackPanel Spacing="10">
+                            <ItemsControl ItemsSource="{Binding Detail.Breadcrumbs}"
+                                          IsVisible="{Binding Detail.HasBreadcrumbs}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:BreadcrumbItemViewModel">
+                                        <StackPanel Orientation="Horizontal" Spacing="2">
+                                            <TextBlock Text="›"
+                                                       IsVisible="{Binding HasLeadingSeparator}"
+                                                       Classes="faint"
+                                                       FontSize="10"
+                                                       VerticalAlignment="Center" />
+                                            <Button Classes="breadcrumb"
+                                                    Content="{Binding Id}"
+                                                    Command="{Binding OpenCommand}"
+                                                    IsEnabled="{Binding CanOpen}"
+                                                    AutomationProperties.Name="{Binding AutomationName}"
+                                                    ToolTip.Tip="{Binding Title}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                             <StackPanel Orientation="Horizontal" Spacing="7">
                                 <Border Background="{Binding Detail.StatusBackground}"
                                         CornerRadius="6"
@@ -794,6 +885,33 @@
                             </Border>
                         </Grid>
 
+                        <StackPanel IsVisible="{Binding Detail.HasChildren}" Spacing="8">
+                            <TextBlock Text="CONTAINMENT" Classes="section-title" />
+                            <Border Background="{StaticResource SurfaceBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="12">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="{Binding Detail.ChildSummary}"
+                                                   FontSize="11"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="Children remain in the main outline."
+                                                   Classes="faint"
+                                                   FontSize="9.5" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1"
+                                            Classes="quiet"
+                                            Command="{Binding Detail.RevealChildrenCommand}"
+                                            AutomationProperties.Name="Reveal children in outline"
+                                            Content="Reveal"
+                                            Margin="10,0,0,0"
+                                            VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+
                         <StackPanel IsVisible="{Binding Detail.HasBlockers}" Spacing="8">
                             <TextBlock Text="BLOCKED BY" Classes="section-title" />
                             <ItemsControl ItemsSource="{Binding Detail.Blockers}">
@@ -830,32 +948,6 @@
                                        Foreground="#C9D4DE" />
                         </StackPanel>
 
-                        <StackPanel IsVisible="{Binding Detail.HasChildren}" Spacing="8">
-                            <TextBlock Text="CHILDREN" Classes="section-title" />
-                            <ItemsControl ItemsSource="{Binding Detail.Children}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:RelatedBeadViewModel">
-                                        <Button Classes="related"
-                                                Command="{Binding OpenCommand}"
-                                                AutomationProperties.Name="{Binding AutomationName}">
-                                            <Grid ColumnDefinitions="4,*,Auto">
-                                                <Border Background="{Binding Accent}" CornerRadius="2" />
-                                                <StackPanel Grid.Column="1" Margin="10,0" Spacing="2">
-                                                    <TextBlock Text="{Binding Id}"
-                                                               Foreground="{Binding Accent}"
-                                                               FontSize="9.5"
-                                                               FontWeight="SemiBold" />
-                                                    <TextBlock Text="{Binding Title}"
-                                                               FontSize="10.5"
-                                                               TextWrapping="Wrap" />
-                                                </StackPanel>
-                                                <TextBlock Grid.Column="2" Text="›" Classes="faint" VerticalAlignment="Center" />
-                                            </Grid>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
 
                         <StackPanel IsVisible="{Binding Detail.HasLinks}" Spacing="8">
                             <TextBlock Text="DEPENDENCIES" Classes="section-title" />

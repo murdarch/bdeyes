@@ -18,7 +18,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         Opened += OnOpened;
         Closed += OnClosed;
-        KeyDown += OnKeyDown;
+        AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
     }
 
     private async void OnOpened(object? sender, EventArgs eventArgs)
@@ -59,10 +59,36 @@ public partial class MainWindow : Window
 
     private void OnKeyDown(object? sender, KeyEventArgs eventArgs)
     {
-        if (eventArgs.Key == Key.Escape && DataContext is MainViewModel { HasSelection: true } viewModel)
+        if (DataContext is not MainViewModel viewModel)
+        {
+            return;
+        }
+
+        if (eventArgs.Key == Key.Escape && viewModel.HasSelection)
         {
             viewModel.CloseDetailCommand.Execute(null);
             eventArgs.Handled = true;
+            return;
+        }
+
+        if (!BeadList.IsKeyboardFocusWithin)
+        {
+            return;
+        }
+
+        eventArgs.Handled = eventArgs.Key switch
+        {
+            Key.Right => viewModel.ExpandOrSelectFirstChild(),
+            Key.Left => viewModel.CollapseOrSelectParent(),
+            Key.Space => viewModel.ToggleSelectedExpansion(),
+            _ => false,
+        };
+
+        if (eventArgs.Handled && viewModel.SelectedRow is not null)
+        {
+            Dispatcher.UIThread.Post(
+                () => BeadList.ScrollIntoView(viewModel.SelectedRow),
+                DispatcherPriority.Background);
         }
     }
 

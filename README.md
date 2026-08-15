@@ -38,12 +38,16 @@ A self-contained release does not require the .NET runtime. Building from source
 3. Extract the complete archive and run `Bdeyes.exe`.
 4. Choose a repository containing an active Beads workspace.
 
-Windows may warn about an unsigned preview binary. Verify the archive against the SHA-256 file attached to the same release before running it.
-
-You can also open a workspace from a terminal:
+Windows may warn about an unsigned preview binary. Before running it, compare the archive hash with the `.sha256` file attached to the same release:
 
 ```powershell
-dotnet run --project src/Bdeyes/Bdeyes.csproj -- --workspace C:\path\to\workspace
+Get-FileHash -Algorithm SHA256 .\bdeyes-0.1.0-preview.1-win-x64.zip
+```
+
+You can open a workspace directly from the extracted archive:
+
+```powershell
+.\Bdeyes.exe --workspace C:\path\to\workspace
 ```
 
 ## Finding `bd`
@@ -93,6 +97,12 @@ Run from source:
 
 ```sh
 dotnet run --project src/Bdeyes/Bdeyes.csproj -- --workspace /path/to/workspace
+```
+
+Create the self-contained Windows preview archive and checksum:
+
+```powershell
+powershell -NoProfile -File scripts/package-windows.ps1
 ```
 
 Contributions should preserve the CLI-only read boundary and include behavioral coverage for any changed user-facing contract.

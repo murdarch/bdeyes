@@ -1,0 +1,68 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows-preview:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Bdeyes.slnx
+
+      - name: Test release build
+        run: dotnet test Bdeyes.slnx --configuration Release --no-restore
+
+      - name: Package Windows preview
+        shell: powershell
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if (!$env:RELEASE_TAG.StartsWith("v", [StringComparison]::Ordinal)) {
+              throw "Release tag must start with 'v'."
+          }
+          $version = $env:RELEASE_TAG.Substring(1)
+          ./scripts/package-windows.ps1 -Version $version -OutputDirectory artifacts
+
+      - name: Upload packaged artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bdeyes-${{ github.ref_name }}-win-x64
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Create GitHub prerelease
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $artifacts = Get-ChildItem -LiteralPath artifacts -File | ForEach-Object FullName
+          if ($artifacts.Count -ne 2) {
+              throw "Expected the preview archive and its checksum; found $($artifacts.Count) files."
+          }
+          gh release create $env:RELEASE_TAG $artifacts `
+              --repo $env:GITHUB_REPOSITORY `
+              --verify-tag `
+              --prerelease `
+              --generate-notes `
+              --title "bdeyes $env:RELEASE_TAG"

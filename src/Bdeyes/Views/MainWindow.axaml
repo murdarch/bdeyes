@@ -1,0 +1,1014 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Bdeyes.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        d:DesignWidth="1480"
+        d:DesignHeight="900"
+        x:Class="Bdeyes.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Width="1480"
+        Height="900"
+        MinWidth="1080"
+        MinHeight="700"
+        WindowStartupLocation="CenterScreen"
+        Icon="/Assets/bdeyes.ico"
+        Title="bdeyes">
+
+    <Design.DataContext>
+        <vm:MainViewModel />
+    </Design.DataContext>
+
+    <Window.Styles>
+        <Style Selector="TextBlock.eyebrow">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+            <Setter Property="LetterSpacing" Value="1.4" />
+        </Style>
+        <Style Selector="TextBlock.display">
+            <Setter Property="FontSize" Value="31" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="LetterSpacing" Value="-0.7" />
+        </Style>
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+        </Style>
+        <Style Selector="TextBlock.faint">
+            <Setter Property="Foreground" Value="{StaticResource TextFaintBrush}" />
+        </Style>
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+            <Setter Property="LetterSpacing" Value="1" />
+        </Style>
+
+        <Style Selector="Button.quiet">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="12,8" />
+        </Style>
+        <Style Selector="Button.quiet:pointerover">
+            <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Foreground" Value="#0A1714" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="17,11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.primary:pointerover">
+            <Setter Property="Opacity" Value="0.9" />
+        </Style>
+        <Style Selector="Button.workspace">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="13" />
+        </Style>
+        <Style Selector="Button.workspace:pointerover">
+            <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+        </Style>
+        <Style Selector="Button.metric">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="15" />
+            <Setter Property="MinHeight" Value="92" />
+        </Style>
+        <Style Selector="Button.metric:pointerover">
+            <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+        </Style>
+        <Style Selector="Button.icon">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="FontSize" Value="17" />
+        </Style>
+        <Style Selector="Button.icon:pointerover">
+            <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        </Style>
+        <Style Selector="Button.related">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="11,9" />
+            <Setter Property="Margin" Value="0,0,0,7" />
+        </Style>
+        <Style Selector="Button.related:pointerover">
+            <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+        </Style>
+
+        <Style Selector="TextBox.search">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="13,9" />
+            <Setter Property="MinWidth" Value="300" />
+        </Style>
+        <Style Selector="TextBox.search:focus">
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+        </Style>
+
+        <Style Selector="ListBox.nav">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="ListBox.nav ListBoxItem">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="10,9" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="ListBox.nav ListBoxItem:pointerover">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+        </Style>
+        <Style Selector="ListBox.nav ListBoxItem:selected">
+            <Setter Property="Background" Value="{StaticResource AccentDimBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+        </Style>
+
+        <Style Selector="ListBox.rows">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="ListBox.rows ListBoxItem">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,9" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="ListBox.rows ListBoxItem:pointerover">
+            <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}" />
+        </Style>
+        <Style Selector="ListBox.rows ListBoxItem:selected">
+            <Setter Property="Background" Value="#1A2B35" />
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+        </Style>
+    </Window.Styles>
+
+    <Grid ColumnDefinitions="260,*,Auto">
+        <!-- Workspace rail -->
+        <Border Grid.Column="0"
+                Background="{StaticResource RailBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,1,0"
+                Padding="18">
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
+                <Grid ColumnDefinitions="38,*">
+                    <Border Width="32"
+                            Height="32"
+                            CornerRadius="10"
+                            Background="{StaticResource AccentDimBrush}">
+                        <Grid>
+                            <Ellipse Width="19"
+                                     Height="12"
+                                     Stroke="{StaticResource AccentBrush}"
+                                     StrokeThickness="1.6" />
+                            <Ellipse Width="5"
+                                     Height="5"
+                                     Fill="{StaticResource AccentBrush}" />
+                        </Grid>
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="bdeyes"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="-0.3" />
+                        <TextBlock Text="BEADS OBSERVATORY"
+                                   Classes="faint"
+                                   FontSize="8.5"
+                                   LetterSpacing="1.2" />
+                    </StackPanel>
+                </Grid>
+
+                <Button Grid.Row="1"
+                        Classes="workspace"
+                        Margin="0,22,0,18"
+                        Click="OpenWorkspace_Click"
+                        AutomationProperties.Name="Open workspace"
+                        ToolTip.Tip="Choose another Beads workspace">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="{Binding WorkspaceName}"
+                                       FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding WorkspacePath}"
+                                       Classes="muted"
+                                       FontSize="10"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding WorkspaceSummary}"
+                                       Classes="faint"
+                                       FontSize="10" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="1"
+                                   Text="⌄"
+                                   Classes="muted"
+                                   Margin="8,0,0,0"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                </Button>
+
+                <StackPanel Grid.Row="2">
+                    <TextBlock Text="QUESTIONS"
+                               Classes="section-title"
+                               Margin="10,0,0,8" />
+                    <ListBox ItemsSource="{Binding NavigationItems}"
+                             SelectedItem="{Binding SelectedNavigation, Mode=TwoWay}"
+                             Classes="nav"
+                             AutomationProperties.Name="Operational questions">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:NavigationItemViewModel">
+                                <Grid ColumnDefinitions="24,*,Auto">
+                                    <TextBlock Text="{Binding Glyph}"
+                                               Foreground="{StaticResource AccentBrush}"
+                                               FontSize="13"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding Label}"
+                                               FontSize="12.5"
+                                               FontWeight="Medium"
+                                               VerticalAlignment="Center" />
+                                    <Border Grid.Column="2"
+                                            MinWidth="26"
+                                            CornerRadius="10"
+                                            Background="#202D39"
+                                            Padding="6,2">
+                                        <TextBlock Text="{Binding Count}"
+                                                   HorizontalAlignment="Center"
+                                                   FontSize="10"
+                                                   Classes="muted" />
+                                    </Border>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </StackPanel>
+
+                <StackPanel Grid.Row="3" Spacing="10">
+                    <Border Background="{StaticResource AccentDimBrush}"
+                            CornerRadius="8"
+                            Padding="10,8">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Ellipse Width="7"
+                                     Height="7"
+                                     Fill="{StaticResource AccentBrush}"
+                                     VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Margin="9,0,0,0">
+                                <TextBlock Text="READ-ONLY"
+                                           Foreground="{StaticResource AccentBrush}"
+                                           FontSize="9"
+                                           FontWeight="Bold"
+                                           LetterSpacing="1" />
+                                <TextBlock Text="Every bd call is read-only"
+                                           Classes="muted"
+                                           FontSize="9.5" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{Binding BdVersionLabel}"
+                                   Classes="faint"
+                                   FontSize="9.5"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding LastRefreshedLabel}"
+                                   Classes="faint"
+                                   FontSize="9.5"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main workspace -->
+        <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*">
+            <Border Grid.Row="0"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="26,15">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                    <TextBox Text="{Binding SearchText, Mode=TwoWay}"
+                             Classes="search"
+                             PlaceholderText="Search id, title, owner, label…"
+                             AutomationProperties.Name="Search beads"
+                             VerticalAlignment="Center" />
+                    <Button Grid.Column="1"
+                            Classes="quiet"
+                            Margin="10,0,0,0"
+                            Click="OpenWorkspace_Click"
+                            AutomationProperties.Name="Open workspace">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <TextBlock Text="⌁" FontSize="15" />
+                            <TextBlock Text="Open workspace" />
+                        </StackPanel>
+                    </Button>
+                    <Button Grid.Column="2"
+                            Classes="quiet"
+                            Margin="8,0,0,0"
+                            Command="{Binding RefreshCommand}"
+                            AutomationProperties.Name="Refresh workspace"
+                            ToolTip.Tip="Refresh now">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <TextBlock Text="↻" FontSize="15" />
+                            <TextBlock Text="Refresh" />
+                        </StackPanel>
+                    </Button>
+                    <ProgressBar Grid.ColumnSpan="3"
+                                 Height="2"
+                                 Margin="0,53,0,-15"
+                                 IsIndeterminate="True"
+                                 IsVisible="{Binding IsLoading}" />
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="1"
+                    IsVisible="{Binding HasError}"
+                    Margin="26,14,26,0"
+                    Padding="13,10"
+                    CornerRadius="8"
+                    Background="{StaticResource BlockedDimBrush}"
+                    BorderBrush="#754044"
+                    BorderThickness="1">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <TextBlock Text="!"
+                               Foreground="{StaticResource BlockedBrush}"
+                               FontWeight="Bold"
+                               Margin="0,0,10,0" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding ErrorMessage}"
+                               TextWrapping="Wrap"
+                               Foreground="#FFD5D2"
+                               FontSize="11.5" />
+                    <Button Grid.Column="2"
+                            Classes="icon"
+                            Command="{Binding DismissErrorCommand}"
+                            Content="×"
+                            AutomationProperties.Name="Dismiss error"
+                            Margin="8,-5,-5,-5" />
+                </Grid>
+            </Border>
+
+            <!-- First-run surface -->
+            <Grid Grid.Row="2"
+                  IsVisible="{Binding HasNoSnapshot}">
+                <Border Width="670"
+                        MaxWidth="670"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="15"
+                        Padding="38">
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto">
+                        <Border Width="64"
+                                Height="64"
+                                HorizontalAlignment="Left"
+                                CornerRadius="20"
+                                Background="{StaticResource AccentDimBrush}">
+                            <Grid>
+                                <Ellipse Width="36"
+                                         Height="22"
+                                         Stroke="{StaticResource AccentBrush}"
+                                         StrokeThickness="2" />
+                                <Ellipse Width="9"
+                                         Height="9"
+                                         Fill="{StaticResource AccentBrush}" />
+                            </Grid>
+                        </Border>
+                        <StackPanel Grid.Row="1" Margin="0,22,0,0" Spacing="9">
+                            <TextBlock Text="Open the ledger."
+                                       Classes="display" />
+                            <TextBlock Text="Not another task editor."
+                                       FontSize="22"
+                                       FontWeight="Medium"
+                                       Foreground="{StaticResource TextMutedBrush}" />
+                            <TextBlock Text="Choose any repository with an active Beads workspace. bdeyes asks bd for a read-only snapshot, then makes the operational shape legible."
+                                       Classes="muted"
+                                       FontSize="13"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="570"
+                                       LineHeight="20" />
+                        </StackPanel>
+                        <Grid Grid.Row="2"
+                              ColumnDefinitions="*,*,*"
+                              ColumnSpacing="12"
+                              Margin="0,25,0,0">
+                            <Border Background="#121B24" CornerRadius="9" Padding="13">
+                                <StackPanel Spacing="5">
+                                    <TextBlock Text="01" Classes="eyebrow" />
+                                    <TextBlock Text="Active now" FontWeight="SemiBold" />
+                                    <TextBlock Text="Claims and fresh movement" Classes="muted" FontSize="10.5" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1" Background="#121B24" CornerRadius="9" Padding="13">
+                                <StackPanel Spacing="5">
+                                    <TextBlock Text="02" Classes="eyebrow" Foreground="{StaticResource BlockedBrush}" />
+                                    <TextBlock Text="Blocked paths" FontWeight="SemiBold" />
+                                    <TextBlock Text="Direct, partial, complete" Classes="muted" FontSize="10.5" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" Background="#121B24" CornerRadius="9" Padding="13">
+                                <StackPanel Spacing="5">
+                                    <TextBlock Text="03" Classes="eyebrow" Foreground="{StaticResource StaleBrush}" />
+                                    <TextBlock Text="Last activity" FontWeight="SemiBold" />
+                                    <TextBlock Text="Quiet work floats upward" Classes="muted" FontSize="10.5" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                        <StackPanel Grid.Row="3"
+                                    Orientation="Horizontal"
+                                    Spacing="14"
+                                    Margin="0,26,0,0">
+                            <Button Classes="primary"
+                                    Click="OpenWorkspace_Click"
+                                    AutomationProperties.Name="Choose workspace"
+                                    Content="Choose workspace" />
+                            <TextBlock Text="bd stays authoritative · no JSONL imports · no mutation commands"
+                                       Classes="faint"
+                                       FontSize="10.5"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Operational views -->
+            <Grid Grid.Row="2"
+                  IsVisible="{Binding HasSnapshot}"
+                  RowDefinitions="Auto,Auto,*"
+                  Margin="26,23,26,0">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding ViewEyebrow}" Classes="eyebrow" />
+                        <TextBlock Text="{Binding ViewTitle}" Classes="display" />
+                        <TextBlock Text="{Binding ViewDescription}"
+                                   Classes="muted"
+                                   FontSize="12.5" />
+                    </StackPanel>
+                    <Border Grid.Column="1"
+                            VerticalAlignment="Bottom"
+                            Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="13"
+                            Padding="11,5">
+                        <TextBlock Text="{Binding ResultCountLabel}"
+                                   Classes="muted"
+                                   FontSize="10.5" />
+                    </Border>
+                </Grid>
+
+                <Grid Grid.Row="1"
+                      ColumnDefinitions="*,*,*,*"
+                      ColumnSpacing="10"
+                      Margin="0,19,0,18">
+                    <Button Classes="metric"
+                            Command="{Binding ShowNowCommand}"
+                            AutomationProperties.Name="Show work in progress">
+                        <Grid RowDefinitions="Auto,*">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="COOKING" Classes="section-title" />
+                                <Ellipse Grid.Column="1" Width="7" Height="7" Fill="{StaticResource AccentBrush}" />
+                            </Grid>
+                            <StackPanel Grid.Row="1" Margin="0,8,0,0">
+                                <TextBlock Text="{Binding ActiveCount}"
+                                           FontSize="25"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource AccentBrush}" />
+                                <TextBlock Text="claimed and in progress" Classes="muted" FontSize="10.5" />
+                            </StackPanel>
+                        </Grid>
+                    </Button>
+                    <Button Grid.Column="1"
+                            Classes="metric"
+                            Command="{Binding ShowUnclaimedCommand}"
+                            AutomationProperties.Name="Show ready unclaimed work">
+                        <Grid RowDefinitions="Auto,*">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="READY" Classes="section-title" />
+                                <Ellipse Grid.Column="1" Width="7" Height="7" Fill="{StaticResource ReadyBrush}" />
+                            </Grid>
+                            <StackPanel Grid.Row="1" Margin="0,8,0,0">
+                                <TextBlock Text="{Binding ReadyCount}"
+                                           FontSize="25"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource ReadyBrush}" />
+                                <TextBlock Text="unclaimed, no blocker" Classes="muted" FontSize="10.5" />
+                            </StackPanel>
+                        </Grid>
+                    </Button>
+                    <Button Grid.Column="2"
+                            Classes="metric"
+                            Command="{Binding ShowBlockedCommand}"
+                            AutomationProperties.Name="Show blocked work">
+                        <Grid RowDefinitions="Auto,*">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="BLOCKED" Classes="section-title" />
+                                <Ellipse Grid.Column="1" Width="7" Height="7" Fill="{StaticResource BlockedBrush}" />
+                            </Grid>
+                            <StackPanel Grid.Row="1" Margin="0,8,0,0">
+                                <TextBlock Text="{Binding BlockedCount}"
+                                           FontSize="25"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource BlockedBrush}" />
+                                <TextBlock Text="stopped or split paths" Classes="muted" FontSize="10.5" />
+                            </StackPanel>
+                        </Grid>
+                    </Button>
+                    <Button Grid.Column="3"
+                            Classes="metric"
+                            Command="{Binding ShowAgingCommand}"
+                            AutomationProperties.Name="Show aging work">
+                        <Grid RowDefinitions="Auto,*">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="QUIET" Classes="section-title" />
+                                <Ellipse Grid.Column="1" Width="7" Height="7" Fill="{StaticResource StaleBrush}" />
+                            </Grid>
+                            <StackPanel Grid.Row="1" Margin="0,8,0,0">
+                                <TextBlock Text="{Binding StaleCount}"
+                                           FontSize="25"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource StaleBrush}" />
+                                <TextBlock Text="no activity for 7+ days" Classes="muted" FontSize="10.5" />
+                            </StackPanel>
+                        </Grid>
+                    </Button>
+                </Grid>
+
+                <Grid Grid.Row="2">
+                    <ListBox ItemsSource="{Binding VisibleRows}"
+                             SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                             Classes="rows"
+                             AutomationProperties.Name="Beads in current view"
+                             Padding="0,0,8,20"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BeadRowViewModel">
+                                <Grid ColumnDefinitions="5,*,Auto" MinHeight="104">
+                                    <Border Background="{Binding StatusBrush}"
+                                            CornerRadius="10,0,0,10" />
+                                    <StackPanel Grid.Column="1"
+                                                Margin="16,13,16,13"
+                                                Spacing="7">
+                                        <TextBlock Text="{Binding ParentTitle}"
+                                                   IsVisible="{Binding HasParent}"
+                                                   Classes="faint"
+                                                   FontSize="9.5"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <TextBlock Text="{Binding Id}"
+                                                       Foreground="{Binding StatusBrush}"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="10.5" />
+                                            <Border Background="#22303D" CornerRadius="5" Padding="5,1">
+                                                <TextBlock Text="{Binding PriorityLabel}"
+                                                           Classes="muted"
+                                                           FontSize="9" />
+                                            </Border>
+                                            <Border Background="#22303D" CornerRadius="5" Padding="5,1">
+                                                <TextBlock Text="{Binding TypeLabel}"
+                                                           Classes="muted"
+                                                           FontSize="9" />
+                                            </Border>
+                                            <Border Background="{Binding StatusBackground}"
+                                                    CornerRadius="5"
+                                                    Padding="5,1">
+                                                <TextBlock Text="{Binding StatusLabel}"
+                                                           Foreground="{Binding StatusBrush}"
+                                                           FontSize="9"
+                                                           FontWeight="SemiBold" />
+                                            </Border>
+                                            <Border IsVisible="{Binding HasBlockState}"
+                                                    Background="{StaticResource BlockedDimBrush}"
+                                                    CornerRadius="5"
+                                                    Padding="5,1">
+                                                <TextBlock Text="{Binding BlockLabel}"
+                                                           Foreground="{StaticResource BlockedBrush}"
+                                                           FontSize="9"
+                                                           FontWeight="SemiBold" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Title}"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   TextWrapping="Wrap" />
+                                        <StackPanel Orientation="Horizontal" Spacing="13">
+                                            <TextBlock Text="{Binding AssigneeLabel}"
+                                                       Classes="muted"
+                                                       FontSize="10.5" />
+                                            <TextBlock Text="{Binding ActivityLabel}"
+                                                       Classes="faint"
+                                                       FontSize="10.5"
+                                                       ToolTip.Tip="{Binding ActivityTooltip}" />
+                                            <TextBlock Text="{Binding ChildProgress}"
+                                                       IsVisible="{Binding HasChildren}"
+                                                       Classes="faint"
+                                                       FontSize="10.5" />
+                                            <TextBlock Text="{Binding BlockerSummary}"
+                                                       IsVisible="{Binding HasBlockerSummary}"
+                                                       Foreground="{StaticResource BlockedBrush}"
+                                                       FontSize="10.5"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2"
+                                               Text="›"
+                                               Classes="faint"
+                                               FontSize="22"
+                                               Margin="0,0,14,0"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <StackPanel IsVisible="{Binding IsResultEmpty}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="7">
+                        <Border Width="42"
+                                Height="42"
+                                HorizontalAlignment="Center"
+                                CornerRadius="14"
+                                Background="{StaticResource SurfaceBrush}">
+                            <TextBlock Text="·"
+                                       FontSize="31"
+                                       Foreground="{StaticResource TextFaintBrush}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Margin="0,-11,0,0" />
+                        </Border>
+                        <TextBlock Text="{Binding EmptyTitle}"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding EmptyDescription}"
+                                   Classes="muted"
+                                   FontSize="11.5"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- Persistent detail pane -->
+        <Border Grid.Column="2"
+                Width="440"
+                IsVisible="{Binding HasSelection}"
+                Background="{StaticResource RailBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1,0,0,0">
+            <Grid RowDefinitions="Auto,*">
+                <Border BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="19,15">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel>
+                            <TextBlock Text="BEAD DETAIL" Classes="section-title" />
+                            <TextBlock Text="{Binding Detail.Id}"
+                                       Foreground="{StaticResource AccentBrush}"
+                                       FontSize="11"
+                                       Margin="0,3,0,0" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Classes="icon"
+                                Command="{Binding CloseDetailCommand}"
+                                Content="×"
+                                AutomationProperties.Name="Close bead detail"
+                                ToolTip.Tip="Close detail (Esc)" />
+                    </Grid>
+                </Border>
+
+                <ScrollViewer Grid.Row="1"
+                              x:Name="DetailScroller"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="20,19,20,30" Spacing="19">
+                        <StackPanel Spacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <Border Background="{Binding Detail.StatusBackground}"
+                                        CornerRadius="6"
+                                        Padding="7,3">
+                                    <TextBlock Text="{Binding Detail.StatusLabel}"
+                                               Foreground="{Binding Detail.StatusBrush}"
+                                               FontWeight="SemiBold"
+                                               FontSize="9.5" />
+                                </Border>
+                                <Border Background="#22303D" CornerRadius="6" Padding="7,3">
+                                    <TextBlock Text="{Binding Detail.PriorityLabel}"
+                                               Classes="muted"
+                                               FontSize="9.5" />
+                                </Border>
+                                <Border Background="#22303D" CornerRadius="6" Padding="7,3">
+                                    <TextBlock Text="{Binding Detail.TypeLabel}"
+                                               Classes="muted"
+                                               FontSize="9.5" />
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Text="{Binding Detail.Title}"
+                                       FontSize="21"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="-0.35"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Detail.ActivityLabel}"
+                                       Classes="muted"
+                                       FontSize="10.5" />
+                            <TextBlock Text="{Binding Detail.LabelsText}"
+                                       IsVisible="{Binding Detail.HasLabels}"
+                                       Foreground="{StaticResource ReadyBrush}"
+                                       FontSize="10.5"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <Grid ColumnDefinitions="*,*"
+                              RowDefinitions="Auto,Auto"
+                              ColumnSpacing="10"
+                              RowSpacing="10">
+                            <Border Background="{StaticResource SurfaceBrush}" CornerRadius="8" Padding="11">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="ASSIGNEE" Classes="section-title" FontSize="9" />
+                                    <TextBlock Text="{Binding Detail.AssigneeLabel}"
+                                               FontSize="11"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1"
+                                    Background="{StaticResource SurfaceBrush}"
+                                    CornerRadius="8"
+                                    Padding="11">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="OWNER" Classes="section-title" FontSize="9" />
+                                    <TextBlock Text="{Binding Detail.OwnerLabel}"
+                                               FontSize="11"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="1"
+                                    Background="{StaticResource SurfaceBrush}"
+                                    CornerRadius="8"
+                                    Padding="11">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="CREATED" Classes="section-title" FontSize="9" />
+                                    <TextBlock Text="{Binding Detail.CreatedLabel}" FontSize="10.5" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="1"
+                                    Grid.Column="1"
+                                    Background="{StaticResource SurfaceBrush}"
+                                    CornerRadius="8"
+                                    Padding="11">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="UPDATED" Classes="section-title" FontSize="9" />
+                                    <TextBlock Text="{Binding Detail.UpdatedLabel}" FontSize="10.5" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <StackPanel IsVisible="{Binding Detail.HasBlockers}" Spacing="8">
+                            <TextBlock Text="BLOCKED BY" Classes="section-title" />
+                            <ItemsControl ItemsSource="{Binding Detail.Blockers}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:RelatedBeadViewModel">
+                                        <Button Classes="related"
+                                                Command="{Binding OpenCommand}"
+                                                AutomationProperties.Name="{Binding AutomationName}">
+                                            <Grid ColumnDefinitions="4,*,Auto">
+                                                <Border Background="{Binding Accent}" CornerRadius="2" />
+                                                <StackPanel Grid.Column="1" Margin="10,0" Spacing="2">
+                                                    <TextBlock Text="{Binding Id}"
+                                                               Foreground="{Binding Accent}"
+                                                               FontSize="9.5"
+                                                               FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding Title}"
+                                                               FontSize="10.5"
+                                                               TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="2" Text="›" Classes="faint" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding Detail.HasDescription}" Spacing="8">
+                            <TextBlock Text="DESCRIPTION" Classes="section-title" />
+                            <TextBlock Text="{Binding Detail.Description}"
+                                       TextWrapping="Wrap"
+                                       FontSize="11.5"
+                                       LineHeight="18"
+                                       Foreground="#C9D4DE" />
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding Detail.HasChildren}" Spacing="8">
+                            <TextBlock Text="CHILDREN" Classes="section-title" />
+                            <ItemsControl ItemsSource="{Binding Detail.Children}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:RelatedBeadViewModel">
+                                        <Button Classes="related"
+                                                Command="{Binding OpenCommand}"
+                                                AutomationProperties.Name="{Binding AutomationName}">
+                                            <Grid ColumnDefinitions="4,*,Auto">
+                                                <Border Background="{Binding Accent}" CornerRadius="2" />
+                                                <StackPanel Grid.Column="1" Margin="10,0" Spacing="2">
+                                                    <TextBlock Text="{Binding Id}"
+                                                               Foreground="{Binding Accent}"
+                                                               FontSize="9.5"
+                                                               FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding Title}"
+                                                               FontSize="10.5"
+                                                               TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="2" Text="›" Classes="faint" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding Detail.HasLinks}" Spacing="8">
+                            <TextBlock Text="DEPENDENCIES" Classes="section-title" />
+                            <ItemsControl ItemsSource="{Binding Detail.Links}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:RelatedBeadViewModel">
+                                        <Button Classes="related"
+                                                Command="{Binding OpenCommand}"
+                                                AutomationProperties.Name="{Binding AutomationName}">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel Spacing="2">
+                                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                                        <TextBlock Text="{Binding Id}"
+                                                                   Foreground="{Binding Accent}"
+                                                                   FontSize="9.5"
+                                                                   FontWeight="SemiBold" />
+                                                        <TextBlock Text="{Binding Relationship}"
+                                                                   Classes="faint"
+                                                                   FontSize="9" />
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding Title}"
+                                                               FontSize="10.5"
+                                                               TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1" Text="›" Classes="faint" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding Detail.HasDependents}" Spacing="8">
+                            <TextBlock Text="USED BY" Classes="section-title" />
+                            <ItemsControl ItemsSource="{Binding Detail.Dependents}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:RelatedBeadViewModel">
+                                        <Button Classes="related"
+                                                Command="{Binding OpenCommand}"
+                                                AutomationProperties.Name="{Binding AutomationName}">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Text="{Binding Id}"
+                                                               Foreground="{Binding Accent}"
+                                                               FontSize="9.5"
+                                                               FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding Title}"
+                                                               FontSize="10.5"
+                                                               TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1" Text="›" Classes="faint" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding Detail.HasDesign}" Spacing="8">
+                            <TextBlock Text="DESIGN" Classes="section-title" />
+                            <TextBlock Text="{Binding Detail.Design}"
+                                       TextWrapping="Wrap"
+                                       FontSize="11.5"
+                                       LineHeight="18"
+                                       Foreground="#C9D4DE" />
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding Detail.HasAcceptanceCriteria}" Spacing="8">
+                            <TextBlock Text="ACCEPTANCE" Classes="section-title" />
+                            <Border Background="{StaticResource AccentDimBrush}"
+                                    BorderBrush="#275448"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="12">
+                                <TextBlock Text="{Binding Detail.AcceptanceCriteria}"
+                                           TextWrapping="Wrap"
+                                           FontSize="11.5"
+                                           LineHeight="18" />
+                            </Border>
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding Detail.HasNotes}" Spacing="8">
+                            <TextBlock Text="NOTES" Classes="section-title" />
+                            <TextBlock Text="{Binding Detail.Notes}"
+                                       TextWrapping="Wrap"
+                                       FontSize="11.5"
+                                       LineHeight="18"
+                                       Foreground="#C9D4DE" />
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding Detail.HasCloseReason}" Spacing="8">
+                            <TextBlock Text="CLOSE REASON" Classes="section-title" />
+                            <TextBlock Text="{Binding Detail.CloseReason}"
+                                       TextWrapping="Wrap"
+                                       FontSize="11.5"
+                                       LineHeight="18"
+                                       Foreground="#C9D4DE" />
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding Detail.HasComments}" Spacing="8">
+                            <TextBlock Text="ACTIVITY" Classes="section-title" />
+                            <ItemsControl ItemsSource="{Binding Detail.Comments}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:CommentViewModel">
+                                        <Border Background="{StaticResource SurfaceBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="8"
+                                                Padding="12"
+                                                Margin="0,0,0,8">
+                                            <StackPanel Spacing="7">
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <TextBlock Text="{Binding Author}"
+                                                               FontSize="10.5"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource ReadyBrush}" />
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding CreatedLabel}"
+                                                               Classes="faint"
+                                                               FontSize="9.5" />
+                                                </Grid>
+                                                <TextBlock Text="{Binding Text}"
+                                                           TextWrapping="Wrap"
+                                                           FontSize="11"
+                                                           LineHeight="17"
+                                                           Foreground="#C9D4DE" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding Detail.IsLoading}"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    Spacing="9">
+                            <ProgressBar Width="70"
+                                         Height="3"
+                                         IsIndeterminate="True" />
+                            <TextBlock Text="loading activity"
+                                       Classes="faint"
+                                       FontSize="9.5"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Detail.ErrorMessage}"
+                                   IsVisible="{Binding Detail.HasError}"
+                                   Foreground="{StaticResource BlockedBrush}"
+                                   TextWrapping="Wrap"
+                                   FontSize="10.5" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

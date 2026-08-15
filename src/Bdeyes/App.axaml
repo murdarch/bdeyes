@@ -1,0 +1,36 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Bdeyes.App"
+             RequestedThemeVariant="Dark">
+    <Application.Resources>
+        <SolidColorBrush x:Key="AppBackgroundBrush" Color="#0C1219" />
+        <SolidColorBrush x:Key="RailBackgroundBrush" Color="#101821" />
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#151F2A" />
+        <SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#1B2734" />
+        <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#223242" />
+        <SolidColorBrush x:Key="BorderBrush" Color="#283746" />
+        <SolidColorBrush x:Key="BorderStrongBrush" Color="#365067" />
+        <SolidColorBrush x:Key="TextBrush" Color="#E9F0F6" />
+        <SolidColorBrush x:Key="TextMutedBrush" Color="#8EA0B3" />
+        <SolidColorBrush x:Key="TextFaintBrush" Color="#607284" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#59D6A5" />
+        <SolidColorBrush x:Key="AccentDimBrush" Color="#173A34" />
+        <SolidColorBrush x:Key="ReadyBrush" Color="#6EB7F2" />
+        <SolidColorBrush x:Key="BlockedBrush" Color="#FF837A" />
+        <SolidColorBrush x:Key="BlockedDimBrush" Color="#4A292B" />
+        <SolidColorBrush x:Key="StaleBrush" Color="#F2BA68" />
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+        <Style Selector="Window">
+            <Setter Property="Background" Value="{StaticResource AppBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontFamily" Value="avares://Avalonia.Fonts.Inter/Assets#Inter" />
+        </Style>
+        <Style Selector="ToolTip">
+            <Setter Property="Background" Value="{StaticResource SurfaceRaisedBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        </Style>
+    </Application.Styles>
+</Application>

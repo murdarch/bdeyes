@@ -12,10 +12,11 @@ public sealed class BdCommandFactoryTests
             BdCommandFactory.ListIssues("C:/workspace with spaces"),
             BdCommandFactory.ShowIssue("C:/workspace with spaces", "town-42"),
             BdCommandFactory.Version("C:/workspace with spaces"),
+            BdCommandFactory.ProbeVersion(),
         };
 
         Assert.All(commands, command => Assert.Equal("--readonly", command[0]));
-        Assert.All(commands, command => Assert.Equal("C:/workspace with spaces", command[2]));
+        Assert.All(commands[..^1], command => Assert.Equal("C:/workspace with spaces", command[2]));
     }
 
     [Fact]

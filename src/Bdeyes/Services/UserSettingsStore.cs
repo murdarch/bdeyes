@@ -4,7 +4,8 @@ namespace Bdeyes.Services;
 
 public sealed record UserSettings(
     string? LastWorkspace = null,
-    IReadOnlyList<string>? ExpandedIssueIds = null);
+    IReadOnlyList<string>? ExpandedIssueIds = null,
+    string? BdExecutablePath = null);
 
 public sealed class UserSettingsStore
 {

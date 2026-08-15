@@ -12,14 +12,25 @@ public interface IBdClient
     Task<BeadIssue> LoadDetailAsync(string workspacePath, string issueId, CancellationToken cancellationToken = default);
 }
 
-public sealed class BdClient : IBdClient
+public interface IConfigurableBdClient : IBdClient
+{
+    string Executable { get; }
+
+    void ConfigureExecutable(string executable);
+
+    Task<string> ProbeVersionAsync(
+        string executable,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class BdClient : IConfigurableBdClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = false,
     };
 
-    private readonly string _executable;
+    private string _executable;
     private readonly TimeProvider _timeProvider;
 
     public BdClient(string? executable = null, TimeProvider? timeProvider = null)
@@ -28,6 +39,40 @@ public sealed class BdClient : IBdClient
             ? Environment.GetEnvironmentVariable("BDEYES_BD") ?? "bd"
             : executable;
         _timeProvider = timeProvider ?? TimeProvider.System;
+    }
+
+    public string Executable => _executable;
+
+    public void ConfigureExecutable(string executable)
+    {
+        if (string.IsNullOrWhiteSpace(executable))
+        {
+            throw new ArgumentException("A bd executable is required.", nameof(executable));
+        }
+
+        _executable = executable;
+    }
+
+    public async Task<string> ProbeVersionAsync(
+        string executable,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(executable))
+        {
+            throw new ArgumentException("A bd executable is required.", nameof(executable));
+        }
+
+        var output = (await RunAsync(
+                executable,
+                BdCommandFactory.ProbeVersion(),
+                cancellationToken)
+            .ConfigureAwait(false)).Trim();
+        if (!output.StartsWith("bd version ", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new BdClientException("The selected file did not identify itself as bd.");
+        }
+
+        return output;
     }
 
     public async Task<BdWorkspaceSnapshot> LoadWorkspaceAsync(
@@ -82,11 +127,19 @@ public sealed class BdClient : IBdClient
         }
     }
 
-    private async Task<string> RunAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
+    private Task<string> RunAsync(
+        IReadOnlyList<string> arguments,
+        CancellationToken cancellationToken) =>
+        RunAsync(_executable, arguments, cancellationToken);
+
+    private async Task<string> RunAsync(
+        string executable,
+        IReadOnlyList<string> arguments,
+        CancellationToken cancellationToken)
     {
         using var process = new Process
         {
-            StartInfo = CreateStartInfo(arguments),
+            StartInfo = CreateStartInfo(executable, arguments),
         };
 
         try
@@ -99,7 +152,7 @@ public sealed class BdClient : IBdClient
         catch (Exception exception) when (exception is not BdClientException)
         {
             throw new BdClientException(
-                $"Could not start '{_executable}'. Install bd or set BDEYES_BD to its path.",
+                $"Could not start '{executable}'. Install bd or choose its executable in Settings.",
                 exception);
         }
 
@@ -133,7 +186,9 @@ public sealed class BdClient : IBdClient
         }
     }
 
-    private ProcessStartInfo CreateStartInfo(IReadOnlyList<string> arguments)
+    private ProcessStartInfo CreateStartInfo(
+        string executable,
+        IReadOnlyList<string> arguments)
     {
         if (OperatingSystem.IsWindows())
         {
@@ -151,12 +206,12 @@ public sealed class BdClient : IBdClient
                 "$json=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:BDEYES_ARGUMENTS)); " +
                 "$arguments=@(ConvertFrom-Json $json); " +
                 "& $env:BDEYES_BD @arguments; exit $LASTEXITCODE");
-            startInfo.Environment["BDEYES_BD"] = _executable;
+            startInfo.Environment["BDEYES_BD"] = executable;
             startInfo.Environment["BDEYES_ARGUMENTS"] = encodedArguments;
             return startInfo;
         }
 
-        var directStartInfo = BaseStartInfo(_executable);
+        var directStartInfo = BaseStartInfo(executable);
         foreach (var argument in arguments)
         {
             directStartInfo.ArgumentList.Add(argument);
@@ -224,7 +279,13 @@ public static class BdCommandFactory
         workspacePath,
         "version",
     ];
+    public static IReadOnlyList<string> ProbeVersion() =>
+    [
+        "--readonly",
+        "version",
+    ];
 }
+
 
 public sealed class BdClientException : Exception
 {

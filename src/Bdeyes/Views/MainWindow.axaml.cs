@@ -102,6 +102,32 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void ChooseBdExecutable_Click(object? sender, RoutedEventArgs eventArgs)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Choose the bd executable",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Executables")
+                {
+                    Patterns = ["*"],
+                },
+            ],
+        });
+        var path = files.FirstOrDefault()?.TryGetLocalPath();
+        if (path is not null &&
+            DataContext is MainViewModel viewModel)
+        {
+            viewModel.BdExecutableDraft = path;
+            if (viewModel.TestBdExecutableCommand.CanExecute(null))
+            {
+                await viewModel.TestBdExecutableCommand.ExecuteAsync(null);
+            }
+        }
+    }
+
     private async void OpenWorkspace_Click(object? sender, RoutedEventArgs eventArgs)
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions

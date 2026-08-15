@@ -357,7 +357,7 @@
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="0,0,0,1"
                     Padding="26,15">
-                <Grid ColumnDefinitions="*,Auto,Auto">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
                     <TextBox Text="{Binding SearchText, Mode=TwoWay}"
                              Classes="search"
                              PlaceholderText="Search id, title, owner, label…"
@@ -384,7 +384,18 @@
                             <TextBlock Text="Refresh" />
                         </StackPanel>
                     </Button>
-                    <ProgressBar Grid.ColumnSpan="3"
+                    <Button Grid.Column="3"
+                            Classes="quiet"
+                            Margin="8,0,0,0"
+                            Command="{Binding OpenBdSettingsCommand}"
+                            AutomationProperties.Name="Configure bd executable"
+                            ToolTip.Tip="Configure bd">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <TextBlock Text="⚙" FontSize="14" />
+                            <TextBlock Text="bd setup" />
+                        </StackPanel>
+                    </Button>
+                    <ProgressBar Grid.ColumnSpan="4"
                                  Height="2"
                                  Margin="0,53,0,-15"
                                  IsIndeterminate="True"
@@ -421,7 +432,7 @@
 
             <!-- First-run surface -->
             <Grid Grid.Row="2"
-                  IsVisible="{Binding HasNoSnapshot}">
+                  IsVisible="{Binding ShowFirstRunSurface}">
                 <Border Width="670"
                         MaxWidth="670"
                         HorizontalAlignment="Center"
@@ -504,9 +515,149 @@
                 </Border>
             </Grid>
 
+            <!-- bd executable settings -->
+            <Grid Grid.Row="2"
+                  IsVisible="{Binding IsBdSettingsOpen}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Border Width="760"
+                            MaxWidth="760"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Margin="28"
+                            Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="15"
+                            Padding="32">
+                        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="20">
+                            <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="SETTINGS" Classes="eyebrow" />
+                                    <TextBlock Text="Connect bdeyes to bd"
+                                               Classes="display"
+                                               FontSize="27" />
+                                    <TextBlock Text="Choose the CLI bdeyes may call. Workspace authentication stays entirely with bd."
+                                               Classes="muted"
+                                               FontSize="12.5"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        Classes="icon"
+                                        Command="{Binding CloseBdSettingsCommand}"
+                                        Content="×"
+                                        AutomationProperties.Name="Close bd settings"
+                                        VerticalAlignment="Top" />
+                            </Grid>
+
+                            <Border Grid.Row="1"
+                                    Background="{StaticResource AccentDimBrush}"
+                                    CornerRadius="9"
+                                    Padding="13,10">
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <TextBlock Text="●"
+                                               Foreground="{StaticResource AccentBrush}"
+                                               FontSize="10"
+                                               VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" Margin="10,0,0,0" Spacing="2">
+                                        <TextBlock Text="CLI-ONLY CREDENTIAL BOUNDARY"
+                                                   Foreground="{StaticResource AccentBrush}"
+                                                   FontSize="9"
+                                                   FontWeight="Bold"
+                                                   LetterSpacing="0.8" />
+                                        <TextBlock Text="bdeyes stores an executable path only. Passwords, server settings, and credential files remain owned by bd."
+                                                   Classes="muted"
+                                                   FontSize="10.5"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <StackPanel Grid.Row="2" Spacing="7">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="BD EXECUTABLE"
+                                                   Classes="section-title"
+                                                   FontSize="9" />
+                                        <TextBlock Text="{Binding BdExecutableSourceLabel}"
+                                                   Classes="faint"
+                                                   FontSize="9.5" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1"
+                                            Classes="breadcrumb"
+                                            Command="{Binding ResetBdExecutableCommand}"
+                                            Content="Use automatic discovery"
+                                            AutomationProperties.Name="Reset bd executable to automatic discovery" />
+                                </Grid>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="9">
+                                    <TextBox Text="{Binding BdExecutableDraft, Mode=TwoWay}"
+                                             Classes="search"
+                                             MinWidth="0"
+                                             AutomationProperties.Name="bd executable path"
+                                             PlaceholderText="Path to bd" />
+                                    <Button Grid.Column="1"
+                                            Classes="quiet"
+                                            Click="ChooseBdExecutable_Click"
+                                            Content="Browse…"
+                                            AutomationProperties.Name="Browse for bd executable" />
+                                </Grid>
+                            </StackPanel>
+
+                            <Border Grid.Row="3"
+                                    Background="#111A23"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="9"
+                                    Padding="14,12">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="{Binding BdExecutableVersionLabel}"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding BdExecutableStatusMessage}"
+                                                   Classes="muted"
+                                                   FontSize="10.5"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1"
+                                            Classes="quiet"
+                                            Command="{Binding TestBdExecutableCommand}"
+                                            Content="Test bd"
+                                            AutomationProperties.Name="Test bd executable"
+                                            VerticalAlignment="Center" />
+                                    <ProgressBar Grid.ColumnSpan="2"
+                                                 Height="2"
+                                                 Margin="0,52,0,-12"
+                                                 IsIndeterminate="True"
+                                                 IsVisible="{Binding IsBdExecutableTesting}" />
+                                </Grid>
+                            </Border>
+
+                            <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto">
+                                <TextBlock Text="Saving reuses this executable for every read-only workspace call."
+                                           Classes="faint"
+                                           FontSize="10"
+                                           VerticalAlignment="Center" />
+                                <Button Grid.Column="1"
+                                        Classes="quiet"
+                                        Command="{Binding CloseBdSettingsCommand}"
+                                        Content="Cancel"
+                                        AutomationProperties.Name="Cancel bd settings"
+                                        Margin="0,0,9,0" />
+                                <Button Grid.Column="2"
+                                        Classes="primary"
+                                        Command="{Binding SaveBdSettingsCommand}"
+                                        Content="Save bd"
+                                        AutomationProperties.Name="Save bd executable" />
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </ScrollViewer>
+            </Grid>
+
+
             <!-- Operational views -->
             <Grid Grid.Row="2"
-                  IsVisible="{Binding HasSnapshot}"
+                  IsVisible="{Binding ShowWorkspaceSurface}"
                   RowDefinitions="Auto,Auto,Auto,*"
                   Margin="22,23,22,0">
                 <Grid Grid.Row="0" ColumnDefinitions="*,Auto">

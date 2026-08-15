@@ -10,6 +10,7 @@ public sealed partial class MainViewModel : ViewModelBase
 {
     private readonly IBdClient _bdClient;
     private readonly UserSettingsStore _settingsStore;
+    private readonly BdExecutableLocator _bdExecutableLocator;
     private readonly string? _initialWorkspace;
     private readonly List<BeadRowViewModel> _allRows = [];
     private readonly List<BeadRowViewModel> _rootRows = [];
@@ -25,6 +26,11 @@ public sealed partial class MainViewModel : ViewModelBase
     private bool _initialized;
     private bool _rebuildingPersonFilters;
     private Task _settingsSaveTail = Task.CompletedTask;
+    private string? _lastWorkspacePath;
+    private string? _explicitBdExecutablePath;
+    private string? _testedBdExecutable;
+    private bool _bdExecutableDraftIsAutomatic;
+    private bool _updatingBdExecutableDraft;
 
     public MainViewModel()
         : this(new BdClient(), new UserSettingsStore(), null)
@@ -34,11 +40,13 @@ public sealed partial class MainViewModel : ViewModelBase
     public MainViewModel(
         IBdClient bdClient,
         UserSettingsStore settingsStore,
-        string? initialWorkspace)
+        string? initialWorkspace,
+        BdExecutableLocator? bdExecutableLocator = null)
     {
         _bdClient = bdClient;
         _settingsStore = settingsStore;
         _initialWorkspace = initialWorkspace;
+        _bdExecutableLocator = bdExecutableLocator ?? new BdExecutableLocator();
 
         NavigationItems =
         [
@@ -75,6 +83,8 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSnapshot))]
     [NotifyPropertyChangedFor(nameof(HasNoSnapshot))]
+    [NotifyPropertyChangedFor(nameof(ShowFirstRunSurface))]
+    [NotifyPropertyChangedFor(nameof(ShowWorkspaceSurface))]
     public partial bool SnapshotLoaded { get; set; }
 
     [ObservableProperty]
@@ -98,6 +108,33 @@ public sealed partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial string LastRefreshedLabel { get; set; } = string.Empty;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowFirstRunSurface))]
+    [NotifyPropertyChangedFor(nameof(ShowWorkspaceSurface))]
+    public partial bool IsBdSettingsOpen { get; set; }
+
+    [ObservableProperty]
+    public partial string BdExecutableDraft { get; set; } = "bd";
+
+    [ObservableProperty]
+    public partial string BdExecutableSourceLabel { get; set; } = "Automatic discovery";
+
+    [ObservableProperty]
+    public partial string BdExecutableVersionLabel { get; set; } = "Not tested";
+
+    [ObservableProperty]
+    public partial string BdExecutableStatusMessage { get; set; } =
+        "Test the selected executable before saving.";
+
+    [ObservableProperty]
+    public partial bool IsBdExecutableTesting { get; set; }
+
+    [ObservableProperty]
+    public partial bool BdExecutableTestSucceeded { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsBdExecutableAutomatic { get; set; } = true;
+
 
     [ObservableProperty]
     public partial string SearchText { get; set; } = string.Empty;
@@ -156,12 +193,28 @@ public sealed partial class MainViewModel : ViewModelBase
     public bool HasSnapshot => SnapshotLoaded;
 
     public bool HasNoSnapshot => !SnapshotLoaded;
+    public bool ShowFirstRunSurface => HasNoSnapshot && !IsBdSettingsOpen;
+
+    public bool ShowWorkspaceSurface => HasSnapshot && !IsBdSettingsOpen;
+
 
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
 
     public bool HasSelection => Detail is not null;
 
     private bool CanRefresh => _snapshot is not null && !IsLoading;
+    private bool CanTestBdExecutable =>
+        _bdClient is IConfigurableBdClient &&
+        !IsLoading &&
+        !IsBdExecutableTesting &&
+        !string.IsNullOrWhiteSpace(BdExecutableDraft);
+
+    private bool CanSaveBdSettings =>
+        CanTestBdExecutable &&
+        BdExecutableTestSucceeded &&
+        _testedBdExecutable is not null &&
+        SamePath(_testedBdExecutable, BdExecutableDraft);
+
 
     public async Task InitializeAsync()
     {
@@ -172,6 +225,11 @@ public sealed partial class MainViewModel : ViewModelBase
 
         _initialized = true;
         var settings = await _settingsStore.LoadAsync();
+        _lastWorkspacePath = settings.LastWorkspace;
+        _explicitBdExecutablePath = string.IsNullOrWhiteSpace(settings.BdExecutablePath)
+            ? null
+            : settings.BdExecutablePath;
+        ApplyBdExecutableResolution(_bdExecutableLocator.Resolve(_explicitBdExecutablePath));
         var workspace = !string.IsNullOrWhiteSpace(_initialWorkspace)
             ? _initialWorkspace
             : settings.LastWorkspace;
@@ -262,6 +320,103 @@ public sealed partial class MainViewModel : ViewModelBase
             await LoadWorkspaceCoreAsync(_snapshot.WorkspacePath, persist: false);
         }
     }
+    [RelayCommand]
+    private void OpenBdSettings()
+    {
+        PrepareBdExecutableDraft(
+            _bdExecutableLocator.Resolve(_explicitBdExecutablePath),
+            automatic: _explicitBdExecutablePath is null);
+        IsBdSettingsOpen = true;
+    }
+
+    [RelayCommand]
+    private void CloseBdSettings()
+    {
+        PrepareBdExecutableDraft(
+            _bdExecutableLocator.Resolve(_explicitBdExecutablePath),
+            automatic: _explicitBdExecutablePath is null);
+        IsBdSettingsOpen = false;
+    }
+
+    [RelayCommand]
+    private void ResetBdExecutable()
+    {
+        PrepareBdExecutableDraft(
+            _bdExecutableLocator.Resolve(null),
+            automatic: true);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanTestBdExecutable))]
+    private async Task TestBdExecutableAsync()
+    {
+        if (_bdClient is not IConfigurableBdClient client)
+        {
+            BdExecutableStatusMessage = "This bdeyes client cannot change bd executables.";
+            return;
+        }
+
+        var resolution = _bdExecutableDraftIsAutomatic
+            ? _bdExecutableLocator.Resolve(null)
+            : _bdExecutableLocator.ResolveExplicit(BdExecutableDraft);
+        if (!resolution.IsFound)
+        {
+            _testedBdExecutable = null;
+            BdExecutableTestSucceeded = false;
+            BdExecutableVersionLabel = "Not found";
+            BdExecutableSourceLabel = resolution.SourceLabel;
+            BdExecutableStatusMessage = resolution.Warning ?? "Choose a bd executable.";
+            return;
+        }
+
+        IsBdExecutableTesting = true;
+        _testedBdExecutable = null;
+        BdExecutableTestSucceeded = false;
+        BdExecutableVersionLabel = "Testing…";
+        BdExecutableStatusMessage = "Running bd --readonly version.";
+        try
+        {
+            var version = await client.ProbeVersionAsync(resolution.Executable);
+            _testedBdExecutable = resolution.Executable;
+            SetBdExecutableDraft(resolution.Executable);
+            BdExecutableSourceLabel = resolution.SourceLabel;
+            BdExecutableVersionLabel = FormatVersion(version);
+            BdExecutableStatusMessage = resolution.Warning ??
+                "Validated without reading a workspace or credential.";
+            BdExecutableTestSucceeded = true;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            BdExecutableVersionLabel = "Validation failed";
+            BdExecutableStatusMessage = FriendlyMessage(exception);
+        }
+        finally
+        {
+            IsBdExecutableTesting = false;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSaveBdSettings))]
+    private async Task SaveBdSettingsAsync()
+    {
+        if (_bdClient is not IConfigurableBdClient client ||
+            _testedBdExecutable is null)
+        {
+            return;
+        }
+
+        client.ConfigureExecutable(_testedBdExecutable);
+        _explicitBdExecutablePath = _bdExecutableDraftIsAutomatic
+            ? null
+            : _testedBdExecutable;
+        await QueuePersistViewStateAsync();
+        IsBdSettingsOpen = false;
+
+        if (_snapshot is not null)
+        {
+            await LoadWorkspaceCoreAsync(_snapshot.WorkspacePath, persist: false);
+        }
+    }
+
 
     [RelayCommand]
     private void DismissError() => ErrorMessage = string.Empty;
@@ -281,7 +436,39 @@ public sealed partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void ShowAging() => SelectNavigation(DashboardMode.Aging);
 
-    partial void OnIsLoadingChanged(bool value) => RefreshCommand.NotifyCanExecuteChanged();
+    partial void OnIsLoadingChanged(bool value)
+    {
+        RefreshCommand.NotifyCanExecuteChanged();
+        TestBdExecutableCommand.NotifyCanExecuteChanged();
+        SaveBdSettingsCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnBdExecutableDraftChanged(string value)
+    {
+        if (_updatingBdExecutableDraft)
+        {
+            return;
+        }
+
+        _bdExecutableDraftIsAutomatic = false;
+        IsBdExecutableAutomatic = false;
+        _testedBdExecutable = null;
+        BdExecutableTestSucceeded = false;
+        BdExecutableVersionLabel = "Not tested";
+        BdExecutableStatusMessage = "Test the selected executable before saving.";
+        TestBdExecutableCommand.NotifyCanExecuteChanged();
+        SaveBdSettingsCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsBdExecutableTestingChanged(bool value)
+    {
+        TestBdExecutableCommand.NotifyCanExecuteChanged();
+        SaveBdSettingsCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnBdExecutableTestSucceededChanged(bool value) =>
+        SaveBdSettingsCommand.NotifyCanExecuteChanged();
+
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
     partial void OnSelectedAssigneeFilterChanged(PersonFilterOption? value)
@@ -326,6 +513,50 @@ public sealed partial class MainViewModel : ViewModelBase
         Detail = detail;
         _detailCancellation = new CancellationTokenSource();
         _ = LoadDetailAsync(detail, _snapshot.WorkspacePath, _detailCancellation.Token);
+    }
+
+    private void ApplyBdExecutableResolution(BdExecutableResolution resolution)
+    {
+        if (_bdClient is IConfigurableBdClient client)
+        {
+            client.ConfigureExecutable(resolution.Executable);
+        }
+
+        PrepareBdExecutableDraft(
+            resolution,
+            automatic: _explicitBdExecutablePath is null);
+    }
+
+    private void PrepareBdExecutableDraft(
+        BdExecutableResolution resolution,
+        bool automatic)
+    {
+        _bdExecutableDraftIsAutomatic = automatic;
+        IsBdExecutableAutomatic = automatic;
+        _testedBdExecutable = null;
+        SetBdExecutableDraft(resolution.Executable);
+        BdExecutableSourceLabel = resolution.SourceLabel;
+        BdExecutableVersionLabel = resolution.IsFound ? "Not tested" : "Not found";
+        BdExecutableStatusMessage = resolution.Warning ??
+            (resolution.IsFound
+                ? "Detected. Test this executable before saving."
+                : "Install bd or choose its executable.");
+        BdExecutableTestSucceeded = false;
+        TestBdExecutableCommand.NotifyCanExecuteChanged();
+        SaveBdSettingsCommand.NotifyCanExecuteChanged();
+    }
+
+    private void SetBdExecutableDraft(string executable)
+    {
+        _updatingBdExecutableDraft = true;
+        try
+        {
+            BdExecutableDraft = executable;
+        }
+        finally
+        {
+            _updatingBdExecutableDraft = false;
+        }
     }
 
     private async Task LoadWorkspaceCoreAsync(string workspacePath, bool persist)
@@ -407,6 +638,15 @@ public sealed partial class MainViewModel : ViewModelBase
         var unresolvedCount = _allRows.Count(row => !row.Facts.IsClosed);
         WorkspaceSummary = $"{snapshot.Issues.Count:N0} beads · {unresolvedCount:N0} unresolved";
         BdVersionLabel = FormatVersion(snapshot.BdVersion);
+        _lastWorkspacePath = snapshot.WorkspacePath;
+        if (_bdClient is IConfigurableBdClient client)
+        {
+            _testedBdExecutable = client.Executable;
+            SetBdExecutableDraft(client.Executable);
+            BdExecutableVersionLabel = BdVersionLabel;
+            BdExecutableStatusMessage = "Connected through this bd executable.";
+            BdExecutableTestSucceeded = true;
+        }
         LastRefreshedLabel = $"refreshed {snapshot.LoadedAt.ToLocalTime():t}";
         SnapshotLoaded = true;
 
@@ -727,14 +967,10 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private Task QueuePersistViewStateAsync()
     {
-        if (_snapshot is null)
-        {
-            return Task.CompletedTask;
-        }
-
         var settings = new UserSettings(
-            _snapshot.WorkspacePath,
-            _expandedIds.Order(StringComparer.OrdinalIgnoreCase).ToArray());
+            _lastWorkspacePath,
+            _expandedIds.Order(StringComparer.OrdinalIgnoreCase).ToArray(),
+            _explicitBdExecutablePath);
         lock (_settingsSaveSync)
         {
             _settingsSaveTail = SaveSettingsAfterAsync(_settingsSaveTail, settings);
@@ -751,7 +987,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            ErrorMessage = "The outline changed, but bdeyes could not persist its expansion state.";
+            ErrorMessage = "bdeyes could not persist its local settings.";
         }
     }
 

@@ -337,15 +337,19 @@
                         </Grid>
                     </Border>
                     <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="{Binding BdVersionLabel}"
-                                   Classes="faint"
-                                   FontSize="9.5"
-                                   VerticalAlignment="Center" />
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="{Binding AppVersionLabel}"
+                                       Classes="faint"
+                                       FontSize="9.5" />
+                            <TextBlock Text="{Binding BdVersionLabel}"
+                                       Classes="faint"
+                                       FontSize="9.5" />
+                        </StackPanel>
                         <TextBlock Grid.Column="1"
                                    Text="{Binding LastRefreshedLabel}"
                                    Classes="faint"
                                    FontSize="9.5"
-                                   VerticalAlignment="Center" />
+                                   VerticalAlignment="Bottom" />
                     </Grid>
                 </StackPanel>
             </Grid>

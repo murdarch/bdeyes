@@ -7,6 +7,14 @@ namespace Bdeyes.Tests;
 public sealed class BdSettingsTests
 {
     [Fact]
+    public void AppExposesThePreviewVersion()
+    {
+        var viewModel = new MainViewModel();
+
+        Assert.Equal("bdeyes 0.1.0-preview.1", viewModel.AppVersionLabel);
+    }
+
+    [Fact]
     public async Task TestedExecutableIsPersistedAndReused()
     {
         var root = TestRoot();

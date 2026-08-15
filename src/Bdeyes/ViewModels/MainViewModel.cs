@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Reflection;
 using Bdeyes.Models;
 using Bdeyes.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -102,6 +103,8 @@ public sealed partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial string WorkspaceSummary { get; set; } = "Read-only by construction";
+
+    public string AppVersionLabel { get; } = GetAppVersionLabel();
 
     [ObservableProperty]
     public partial string BdVersionLabel { get; set; } = "bd not connected";
@@ -1186,6 +1189,17 @@ public sealed partial class MainViewModel : ViewModelBase
 
         var buildStart = version.IndexOf('(');
         return buildStart > 0 ? version[..buildStart].TrimEnd() : version;
+    }
+
+    private static string GetAppVersionLabel()
+    {
+        var informationalVersion = typeof(MainViewModel).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion;
+        var version = informationalVersion?.Split('+', 2)[0] ??
+            typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ??
+            "development";
+        return $"bdeyes {version}";
     }
 
     private static string FriendlyMessage(Exception exception) =>

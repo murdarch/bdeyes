@@ -9,6 +9,7 @@ public sealed class BeadAnalyzer
     private readonly IReadOnlyList<BeadIssue> _issues;
     private readonly Dictionary<string, BeadIssue> _issuesById;
     private readonly Dictionary<string, IReadOnlyList<BeadIssue>> _childrenByParent;
+    private readonly Dictionary<string, string> _parentByChild;
     private readonly DateTimeOffset _now;
 
     public BeadAnalyzer(IReadOnlyList<BeadIssue> issues, DateTimeOffset now)
@@ -20,14 +21,36 @@ public sealed class BeadAnalyzer
             .GroupBy(issue => issue.Id, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
-        _childrenByParent = issues
-            .Where(issue => !string.IsNullOrWhiteSpace(issue.Parent))
-            .GroupBy(issue => issue.Parent!, StringComparer.OrdinalIgnoreCase)
+        var parentCandidates = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var issue in _issuesById.Values)
+        {
+            var parentId = ParentIdOf(issue);
+            if (!string.IsNullOrWhiteSpace(parentId) &&
+                !string.Equals(parentId, issue.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                parentCandidates[issue.Id] = parentId;
+            }
+        }
+
+        _parentByChild = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (childId, parentId) in parentCandidates
+                     .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            if (!WouldCreateParentCycle(childId, parentId, _parentByChild))
+            {
+                _parentByChild[childId] = parentId;
+            }
+        }
+
+        _childrenByParent = _issuesById.Values
+            .Where(issue => _parentByChild.ContainsKey(issue.Id))
+            .GroupBy(issue => _parentByChild[issue.Id], StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 group => group.Key,
                 group => (IReadOnlyList<BeadIssue>)group
                     .OrderBy(issue => issue.Priority)
-                    .ThenBy(issue => issue.CreatedAt)
+                    .ThenByDescending(issue => issue.UpdatedAt)
+                    .ThenBy(issue => issue.Id, StringComparer.OrdinalIgnoreCase)
                     .ToArray(),
                 StringComparer.OrdinalIgnoreCase);
     }
@@ -63,6 +86,33 @@ public sealed class BeadAnalyzer
 
     public IReadOnlyList<BeadIssue> ChildrenOf(string issueId) =>
         _childrenByParent.GetValueOrDefault(issueId) ?? [];
+
+    public BeadIssue? ParentOf(BeadIssue issue) =>
+        _parentByChild.TryGetValue(issue.Id, out var parentId)
+            ? Find(parentId)
+            : null;
+
+    public IReadOnlyList<BeadIssue> AncestorsOf(string issueId)
+    {
+        var ancestors = new List<BeadIssue>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { issueId };
+        var current = Find(issueId);
+
+        while (current is not null)
+        {
+            var parent = ParentOf(current);
+            if (parent is null || !seen.Add(parent.Id))
+            {
+                break;
+            }
+
+            ancestors.Add(parent);
+            current = parent;
+        }
+
+        ancestors.Reverse();
+        return ancestors;
+    }
 
     public IReadOnlyList<BeadIssue> DescendantsOf(string issueId)
     {
@@ -107,10 +157,7 @@ public sealed class BeadAnalyzer
         return blockerIds;
     }
 
-    public string? ParentTitle(BeadIssue issue) =>
-        !string.IsNullOrWhiteSpace(issue.Parent) && _issuesById.TryGetValue(issue.Parent, out var parent)
-            ? parent.Title
-            : null;
+    public string? ParentTitle(BeadIssue issue) => ParentOf(issue)?.Title;
 
     private BlockSeverity GetBlockSeverity(BeadIssue issue, bool isDirectlyBlocked)
     {
@@ -159,6 +206,47 @@ public sealed class BeadAnalyzer
     {
         var activityAt = issue.UpdatedAt ?? issue.CreatedAt ?? _now;
         return activityAt >= _now ? TimeSpan.Zero : _now - activityAt;
+    }
+
+    private static string? ParentIdOf(BeadIssue issue)
+    {
+        if (!string.IsNullOrWhiteSpace(issue.Parent))
+        {
+            return issue.Parent;
+        }
+
+        return (issue.Dependencies ?? [])
+            .FirstOrDefault(dependency =>
+                string.Equals(
+                    dependency.Type,
+                    "parent-child",
+                    StringComparison.OrdinalIgnoreCase))
+            ?.DependsOnId;
+    }
+
+    private static bool WouldCreateParentCycle(
+        string childId,
+        string parentId,
+        IReadOnlyDictionary<string, string> acceptedParents)
+    {
+        var current = parentId;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        while (seen.Add(current))
+        {
+            if (string.Equals(current, childId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!acceptedParents.TryGetValue(current, out var next))
+            {
+                return false;
+            }
+
+            current = next;
+        }
+
+        return true;
     }
 
     private static bool IsEpic(BeadIssue issue) =>

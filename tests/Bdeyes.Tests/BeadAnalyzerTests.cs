@@ -94,6 +94,46 @@ public sealed class BeadAnalyzerTests
         Assert.False(claimedFacts.IsStale);
     }
 
+    [Fact]
+    public void ParentChildEdgesAreAuthoritativeAndDottedIdsAreOnlyNames()
+    {
+        var epic = Issue("town");
+        var linked = Issue(
+            "town.1",
+            dependencies:
+            [
+                new BeadDependency
+                {
+                    IssueId = "town.1",
+                    DependsOnId = "town",
+                    Type = "parent-child",
+                },
+            ]);
+        var dottedButUnlinked = Issue("town.2");
+        var analyzer = new BeadAnalyzer([epic, linked, dottedButUnlinked], Now);
+
+        Assert.Equal(linked, Assert.Single(analyzer.ChildrenOf(epic.Id)));
+        Assert.Equal(epic, analyzer.ParentOf(linked));
+        Assert.Null(analyzer.ParentOf(dottedButUnlinked));
+        Assert.Equal([epic], analyzer.AncestorsOf(linked.Id));
+    }
+
+    [Fact]
+    public void CyclicParentsArePrunedIntoOneConsistentHierarchy()
+    {
+        var a = Issue("a", parent: "b");
+        var b = Issue("b", parent: "a");
+        var analyzer = new BeadAnalyzer([a, b], Now);
+
+        Assert.Equal(b, analyzer.ParentOf(a));
+        Assert.Null(analyzer.ParentOf(b));
+        Assert.Equal([a], analyzer.ChildrenOf(b.Id));
+        Assert.Empty(analyzer.ChildrenOf(a.Id));
+        Assert.Equal([b], analyzer.AncestorsOf(a.Id));
+        Assert.Equal([a], analyzer.DescendantsOf(b.Id));
+        Assert.Empty(analyzer.Analyze(a).Children);
+    }
+
     private static BeadIssue Issue(
         string id,
         string status = "open",

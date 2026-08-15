@@ -12,13 +12,18 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly UserSettingsStore _settingsStore;
     private readonly string? _initialWorkspace;
     private readonly List<BeadRowViewModel> _allRows = [];
+    private readonly List<BeadRowViewModel> _rootRows = [];
     private readonly Dictionary<string, BeadRowViewModel> _rowsById =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _expandedIds = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _includedIds = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _settingsSaveSync = new();
 
     private BdWorkspaceSnapshot? _snapshot;
     private BeadAnalyzer? _analyzer;
     private CancellationTokenSource? _detailCancellation;
     private bool _initialized;
+    private Task _settingsSaveTail = Task.CompletedTask;
 
     public MainViewModel()
         : this(new BdClient(), new UserSettingsStore(), null)
@@ -99,7 +104,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial string ViewDescription { get; set; } =
-        "Claimed work, freshest activity first.";
+        "Active paths with their epic and parent context.";
 
     [ObservableProperty]
     public partial string ResultCountLabel { get; set; } = "0 beads";
@@ -150,12 +155,82 @@ public sealed partial class MainViewModel : ViewModelBase
             : settings.LastWorkspace;
         if (!string.IsNullOrWhiteSpace(workspace))
         {
+            if (SamePath(workspace, settings.LastWorkspace))
+            {
+                _expandedIds.UnionWith(settings.ExpandedIssueIds ?? []);
+            }
+
             await LoadWorkspaceCoreAsync(workspace, persist: false);
         }
     }
 
-    public Task OpenWorkspaceAsync(string workspacePath) =>
-        LoadWorkspaceCoreAsync(workspacePath, persist: true);
+    public Task OpenWorkspaceAsync(string workspacePath)
+    {
+        if (_snapshot is null || !SamePath(_snapshot.WorkspacePath, workspacePath))
+        {
+            _expandedIds.Clear();
+        }
+
+        return LoadWorkspaceCoreAsync(workspacePath, persist: true);
+    }
+
+    public bool ExpandOrSelectFirstChild()
+    {
+        if (SelectedRow is not { } row)
+        {
+            return false;
+        }
+
+        var firstVisibleChild = row.Children.FirstOrDefault(child => _includedIds.Contains(child.Id));
+        if (firstVisibleChild is null)
+        {
+            return false;
+        }
+
+        if (!row.IsExpanded)
+        {
+            SetExpanded(row, expanded: true);
+        }
+        else
+        {
+            SelectedRow = firstVisibleChild;
+        }
+
+        return true;
+    }
+
+    public bool CollapseOrSelectParent()
+    {
+        if (SelectedRow is not { } row)
+        {
+            return false;
+        }
+
+        if (row.IsExpanded)
+        {
+            SetExpanded(row, expanded: false);
+            return true;
+        }
+
+        if (row.Parent is not null && _includedIds.Contains(row.Parent.Id))
+        {
+            SelectedRow = row.Parent;
+            return true;
+        }
+
+        return false;
+    }
+
+    public bool ToggleSelectedExpansion()
+    {
+        if (SelectedRow is not { HasVisibleChildren: true } row)
+        {
+            return false;
+        }
+
+        ToggleExpansion(row);
+        return true;
+    }
 
     [RelayCommand(CanExecute = nameof(CanRefresh))]
     private async Task RefreshAsync()
@@ -206,7 +281,11 @@ public sealed partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var detail = new BeadDetailViewModel(value, _analyzer, NavigateToIssue);
+        var detail = new BeadDetailViewModel(
+            value,
+            _analyzer,
+            NavigateToIssue,
+            RevealInOutline);
         Detail = detail;
         _detailCancellation = new CancellationTokenSource();
         _ = LoadDetailAsync(detail, _snapshot.WorkspacePath, _detailCancellation.Token);
@@ -223,7 +302,7 @@ public sealed partial class MainViewModel : ViewModelBase
             ApplySnapshot(snapshot);
             if (persist)
             {
-                await _settingsStore.SaveAsync(new UserSettings(snapshot.WorkspacePath));
+                await QueuePersistViewStateAsync();
             }
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -242,15 +321,49 @@ public sealed partial class MainViewModel : ViewModelBase
         _snapshot = snapshot;
         _analyzer = new BeadAnalyzer(snapshot.Issues, snapshot.LoadedAt);
         _allRows.Clear();
+        _rootRows.Clear();
         _rowsById.Clear();
 
         foreach (var issue in snapshot.Issues)
         {
-            var row = new BeadRowViewModel(_analyzer.Analyze(issue), _analyzer);
+            var row = new BeadRowViewModel(
+                _analyzer.Analyze(issue),
+                _analyzer,
+                ToggleExpansion);
             _allRows.Add(row);
             _rowsById[row.Id] = row;
         }
 
+        foreach (var row in _allRows)
+        {
+            var parentIssue = _analyzer.ParentOf(row.Issue);
+            if (parentIssue is not null &&
+                _rowsById.TryGetValue(parentIssue.Id, out var parent))
+            {
+                row.AttachTo(parent);
+            }
+        }
+
+        _rootRows.AddRange(_allRows.Where(row => row.Parent is null));
+        _rootRows.Sort(CompareRows);
+        foreach (var root in _rootRows)
+        {
+            root.SortChildren();
+        }
+
+        var reached = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var root in _rootRows)
+        {
+            AssignDepth(root, 0, reached);
+        }
+
+        foreach (var orphan in _allRows.Where(row => !reached.Contains(row.Id)).ToArray())
+        {
+            orphan.SetDepth(0);
+            _rootRows.Add(orphan);
+        }
+
+        _expandedIds.IntersectWith(_rowsById.Keys);
         WorkspaceName = new DirectoryInfo(snapshot.WorkspacePath).Name;
         WorkspacePath = snapshot.WorkspacePath;
         var unresolvedCount = _allRows.Count(row => !row.Facts.IsClosed);
@@ -262,14 +375,9 @@ public sealed partial class MainViewModel : ViewModelBase
         UpdateCounts();
         ApplyFilter();
 
-        if (selectedId is not null && _rowsById.TryGetValue(selectedId, out var selected))
-        {
-            SelectedRow = selected;
-        }
-        else
-        {
-            SelectedRow = null;
-        }
+        SelectedRow = selectedId is not null && _rowsById.TryGetValue(selectedId, out var selected)
+            ? selected
+            : null;
     }
 
     private async Task LoadDetailAsync(
@@ -317,48 +425,202 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private void ApplyFilter()
     {
-        var mode = SelectedNavigation?.Mode ?? DashboardMode.Now;
-        IEnumerable<BeadRowViewModel> rows = mode switch
+        if (_analyzer is null)
         {
-            DashboardMode.Now => _allRows
-                .Where(row => row.Facts.IsActive)
-                .OrderByDescending(row => row.Issue.UpdatedAt),
-            DashboardMode.Blocked => _allRows
-                .Where(row => !row.Facts.IsClosed && row.Facts.BlockSeverity != BlockSeverity.None)
-                .OrderBy(row => BlockOrder(row.Facts.BlockSeverity))
-                .ThenBy(row => row.Issue.Priority)
-                .ThenByDescending(row => row.Issue.UpdatedAt),
-            DashboardMode.Unclaimed => _allRows
-                .Where(row => row.Facts.IsUnclaimed)
-                .OrderBy(row => row.Issue.Priority)
-                .ThenByDescending(row => row.Issue.UpdatedAt),
-            DashboardMode.Aging => _allRows
-                .Where(row => !row.Facts.IsClosed && row.Facts.IsStale)
-                .OrderByDescending(row => row.Facts.ActivityAge)
-                .ThenBy(row => row.Issue.Priority),
-            DashboardMode.Epics => _allRows
-                .Where(row => row.IsEpic && !row.Facts.IsClosed)
-                .OrderByDescending(row => row.Issue.UpdatedAt),
-            _ => _allRows
-                .OrderBy(row => row.Facts.IsClosed)
-                .ThenByDescending(row => row.Issue.UpdatedAt),
+            VisibleRows.Clear();
+            IsResultEmpty = true;
+            ResultCountLabel = "0 beads";
+            return;
+        }
+
+        var mode = SelectedNavigation?.Mode ?? DashboardMode.Now;
+        var query = SearchText.Trim();
+        IEnumerable<BeadRowViewModel> directRows = mode switch
+        {
+            DashboardMode.Now => _allRows.Where(row => row.Facts.IsActive),
+            DashboardMode.Blocked => _allRows.Where(row =>
+                !row.Facts.IsClosed && row.Facts.BlockSeverity != BlockSeverity.None),
+            DashboardMode.Unclaimed => _allRows.Where(row => row.Facts.IsUnclaimed),
+            DashboardMode.Aging => _allRows.Where(row =>
+                !row.Facts.IsClosed && row.Facts.IsStale),
+            DashboardMode.Epics when query.Length == 0 => _allRows.Where(row =>
+                row.IsEpic && !row.Facts.IsClosed),
+            DashboardMode.Epics => _allRows.Where(BelongsToOpenEpic),
+            _ => _allRows,
         };
 
-        var query = SearchText.Trim();
         if (query.Length > 0)
         {
-            rows = rows.Where(row => row.Matches(query));
+            directRows = directRows.Where(row => row.Matches(query));
         }
 
-        var materialized = rows.ToArray();
-        VisibleRows.Clear();
-        foreach (var row in materialized)
+        var direct = directRows.ToArray();
+        var includeEpicSubtrees = mode == DashboardMode.Epics && query.Length == 0;
+        var projection = OutlineProjection.Create(
+            direct.Select(row => row.Id),
+            _analyzer,
+            includeDescendantsOfMatches: includeEpicSubtrees);
+        _includedIds.Clear();
+        _includedIds.UnionWith(projection.IncludedIds);
+
+        var focusedView =
+            query.Length > 0 ||
+            mode is DashboardMode.Now or
+                DashboardMode.Blocked or
+                DashboardMode.Unclaimed or
+                DashboardMode.Aging;
+        foreach (var row in _allRows)
         {
-            VisibleRows.Add(row);
+            row.IsDirectMatch = projection.DirectMatchIds.Contains(row.Id);
+            var isRequiredEpicContext =
+                mode == DashboardMode.Epics &&
+                !row.IsDirectMatch &&
+                projection.RequiredExpandedIds.Contains(row.Id);
+            row.IsContextOnly =
+                projection.IncludedIds.Contains(row.Id) &&
+                ((focusedView && !row.IsDirectMatch) || isRequiredEpicContext);
+            row.HasVisibleChildren = row.Children.Any(child => _includedIds.Contains(child.Id));
+            row.IsExpanded =
+                row.HasVisibleChildren &&
+                (_expandedIds.Contains(row.Id) ||
+                 (focusedView && projection.RequiredExpandedIds.Contains(row.Id)) ||
+                 isRequiredEpicContext);
         }
 
-        ResultCountLabel = $"{materialized.Length:N0} bead{(materialized.Length == 1 ? string.Empty : "s")}";
-        IsResultEmpty = materialized.Length == 0;
+        ProjectVisibleRows();
+        var contextCount = projection.IncludedIds.Count - projection.DirectMatchIds.Count;
+        ResultCountLabel = contextCount > 0
+            ? $"{direct.Length:N0} match{(direct.Length == 1 ? string.Empty : "es")} · {contextCount:N0} context"
+            : $"{direct.Length:N0} bead{(direct.Length == 1 ? string.Empty : "s")}";
+        IsResultEmpty = direct.Length == 0;
+    }
+
+    private void ProjectVisibleRows()
+    {
+        var projected = new List<BeadRowViewModel>();
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var root in _rootRows)
+        {
+            AddVisible(root, visited, projected);
+        }
+
+        SynchronizeVisibleRows(projected);
+        if (SelectedRow is not null && !projected.Contains(SelectedRow))
+        {
+            SelectedRow = null;
+        }
+    }
+
+    private void AddVisible(
+        BeadRowViewModel row,
+        HashSet<string> visited,
+        List<BeadRowViewModel> projected)
+    {
+        if (!_includedIds.Contains(row.Id) || !visited.Add(row.Id))
+        {
+            return;
+        }
+
+        projected.Add(row);
+        if (!row.IsExpanded)
+        {
+            return;
+        }
+
+        foreach (var child in row.Children)
+        {
+            AddVisible(child, visited, projected);
+        }
+    }
+
+    private void SynchronizeVisibleRows(IReadOnlyList<BeadRowViewModel> projected)
+    {
+        for (var index = 0; index < projected.Count; index++)
+        {
+            var row = projected[index];
+            if (index < VisibleRows.Count && ReferenceEquals(VisibleRows[index], row))
+            {
+                continue;
+            }
+
+            var currentIndex = VisibleRows.IndexOf(row);
+            if (currentIndex >= 0)
+            {
+                VisibleRows.Move(currentIndex, index);
+            }
+            else
+            {
+                VisibleRows.Insert(index, row);
+            }
+        }
+
+        while (VisibleRows.Count > projected.Count)
+        {
+            VisibleRows.RemoveAt(VisibleRows.Count - 1);
+        }
+    }
+
+    private void ToggleExpansion(BeadRowViewModel row)
+    {
+        if (!row.HasVisibleChildren)
+        {
+            return;
+        }
+
+        SetExpanded(row, !row.IsExpanded);
+    }
+
+    private void SetExpanded(BeadRowViewModel row, bool expanded)
+    {
+        row.IsExpanded = expanded;
+        if (expanded)
+        {
+            _expandedIds.Add(row.Id);
+        }
+        else
+        {
+            _expandedIds.Remove(row.Id);
+        }
+
+        if (!expanded &&
+            SelectedRow is not null &&
+            IsDescendantOf(SelectedRow, row))
+        {
+            SelectedRow = row;
+        }
+
+        ProjectVisibleRows();
+        _ = QueuePersistViewStateAsync();
+    }
+
+    private Task QueuePersistViewStateAsync()
+    {
+        if (_snapshot is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var settings = new UserSettings(
+            _snapshot.WorkspacePath,
+            _expandedIds.Order(StringComparer.OrdinalIgnoreCase).ToArray());
+        lock (_settingsSaveSync)
+        {
+            _settingsSaveTail = SaveSettingsAfterAsync(_settingsSaveTail, settings);
+            return _settingsSaveTail;
+        }
+    }
+
+    private async Task SaveSettingsAfterAsync(Task precedingSave, UserSettings settings)
+    {
+        await precedingSave;
+        try
+        {
+            await _settingsStore.SaveAsync(settings);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            ErrorMessage = "The outline changed, but bdeyes could not persist its expansion state.";
+        }
     }
 
     private void UpdateViewCopy(DashboardMode mode)
@@ -368,37 +630,37 @@ public sealed partial class MainViewModel : ViewModelBase
             DashboardMode.Now => (
                 "NOW",
                 "What’s cooking",
-                "Claimed work, freshest activity first.",
+                "Active paths with their epic and parent context.",
                 "Nothing is cooking",
                 "No beads are currently marked in progress."),
             DashboardMode.Blocked => (
                 "FRICTION",
                 "Where work stops",
-                "Direct blockers and epics whose paths are partly or completely blocked.",
+                "Blocked leaves and the ancestor paths that contain them.",
                 "No blocked paths",
                 "Every unresolved path can move."),
             DashboardMode.Unclaimed => (
                 "AVAILABLE",
                 "Ready for a hand",
-                "Open, unclaimed work with no active blocker.",
+                "Ready leaves grouped beneath their larger work.",
                 "Nothing ready to claim",
                 "Available work is either claimed, blocked, or deferred."),
             DashboardMode.Aging => (
                 "ATTENTION",
                 "Quiet too long",
-                $"Unresolved beads without activity for {BeadAnalyzer.StaleAfter.TotalDays:0} days or more.",
+                $"Stale paths with {BeadAnalyzer.StaleAfter.TotalDays:0}+ days since activity.",
                 "Nothing has gone quiet",
                 "Every unresolved bead has recent activity."),
             DashboardMode.Epics => (
                 "SHAPE",
                 "The larger work",
-                "Open epics with child progress and aggregate blockage.",
+                "Collapsible epic trees with progress and blockage signals.",
                 "No open epics",
                 "This workspace has no unresolved epics."),
             _ => (
                 "LEDGER",
                 "Every bead",
-                "Open and closed work, ordered by last activity.",
+                "The authoritative containment outline, open and closed.",
                 "No beads found",
                 "This workspace returned an empty ledger."),
         };
@@ -411,8 +673,35 @@ public sealed partial class MainViewModel : ViewModelBase
             return;
         }
 
+        SearchText = string.Empty;
+        ExpandAncestorPath(row);
         SelectNavigation(DashboardMode.All);
         SelectedRow = row;
+    }
+
+    private void RevealInOutline(string issueId)
+    {
+        if (!_rowsById.TryGetValue(issueId, out var row))
+        {
+            return;
+        }
+
+        SearchText = string.Empty;
+        ExpandAncestorPath(row);
+        _expandedIds.Add(row.Id);
+        SelectNavigation(DashboardMode.All);
+        SelectedRow = row;
+        _ = QueuePersistViewStateAsync();
+    }
+
+    private void ExpandAncestorPath(BeadRowViewModel row)
+    {
+        var current = row.Parent;
+        while (current is not null)
+        {
+            _expandedIds.Add(current.Id);
+            current = current.Parent;
+        }
     }
 
     private void SelectNavigation(DashboardMode mode)
@@ -428,16 +717,96 @@ public sealed partial class MainViewModel : ViewModelBase
         }
     }
 
+    private bool BelongsToOpenEpic(BeadRowViewModel row)
+    {
+        if (row.IsEpic && !row.Facts.IsClosed)
+        {
+            return true;
+        }
+
+        var current = row.Parent;
+        while (current is not null)
+        {
+            if (current.IsEpic && !current.Facts.IsClosed)
+            {
+                return true;
+            }
+
+            current = current.Parent;
+        }
+
+        return false;
+    }
+
     private void SetNavigationCount(DashboardMode mode, int count) =>
         NavigationItems.First(item => item.Mode == mode).Count = count;
 
-    private static int BlockOrder(BlockSeverity severity) => severity switch
+    private static bool IsDescendantOf(BeadRowViewModel candidate, BeadRowViewModel ancestor)
     {
-        BlockSeverity.Complete => 0,
-        BlockSeverity.Partial => 1,
-        BlockSeverity.Direct => 2,
-        _ => 3,
-    };
+        var current = candidate.Parent;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+
+            current = current.Parent;
+        }
+
+        return false;
+    }
+
+
+    private static void AssignDepth(
+        BeadRowViewModel row,
+        int depth,
+        HashSet<string> reached)
+    {
+        if (!reached.Add(row.Id))
+        {
+            return;
+        }
+
+        row.SetDepth(depth);
+        foreach (var child in row.Children)
+        {
+            AssignDepth(child, depth + 1, reached);
+        }
+    }
+
+    private static int CompareRows(BeadRowViewModel left, BeadRowViewModel right)
+    {
+        var closed = left.Facts.IsClosed.CompareTo(right.Facts.IsClosed);
+        if (closed != 0)
+        {
+            return closed;
+        }
+
+        var priority = left.Issue.Priority.CompareTo(right.Issue.Priority);
+        if (priority != 0)
+        {
+            return priority;
+        }
+
+        var activity = Nullable.Compare(right.Issue.UpdatedAt, left.Issue.UpdatedAt);
+        return activity != 0
+            ? activity
+            : StringComparer.OrdinalIgnoreCase.Compare(left.Id, right.Id);
+    }
+
+    private static bool SamePath(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+        {
+            return false;
+        }
+
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), comparison);
+    }
 
     private static string FormatVersion(string value)
     {

@@ -2,7 +2,9 @@ using System.Text.Json;
 
 namespace Bdeyes.Services;
 
-public sealed record UserSettings(string? LastWorkspace = null);
+public sealed record UserSettings(
+    string? LastWorkspace = null,
+    IReadOnlyList<string>? ExpandedIssueIds = null);
 
 public sealed class UserSettingsStore
 {

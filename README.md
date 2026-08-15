@@ -2,6 +2,18 @@
 
 A read-only desktop observatory for [Beads](https://github.com/gastownhall/beads). bdeyes turns a ledger into a compact operational outline: what is moving, what is blocked, what is ready, what has gone quiet, and who owns it.
 
+## Screenshots
+
+These screenshots come from a generated demo fixture. Every bead ID, title, person, owner, timestamp, comment, and path is fictional; no live ledger data appears.
+
+![bdeyes containment outline with a selected blocked bead and its inspector](docs/screenshots/bdeyes-overview.png)
+
+*The containment outline and inspector, with the espresso machine awaiting a ceremonial teaspoon.*
+
+![bdeyes assignee filter showing fictional people and explicit unassigned work](docs/screenshots/bdeyes-people-filters.png)
+
+*Assignee and owner facets compose with the current operational view; unassigned work remains explicit.*
+
 ## Preview status
 
 bdeyes is currently a `0.1.0-preview.1` project.

@@ -16,12 +16,13 @@ These screenshots come from a generated demo fixture. Every bead ID, title, pers
 
 ## Preview status
 
-bdeyes is currently a `0.1.0-preview.1` project.
+bdeyes is currently a `0.1.0-preview.2` project.
 
-- Windows 10 and 11 are the supported preview binary target.
+- Windows 10/11 x64 and Linux x64 are supported preview binary targets.
 - Windows behavior is exercised against a live Beads workspace with native UI Automation.
+- Linux behavior passed a native Ubuntu 24.04/WSLg smoke against a live workspace and subsequent road use.
 - Windows, macOS, and Linux compile and run behavioral tests in CI.
-- macOS and Linux binaries are not published until each desktop surface has a native smoke test and packaging contract.
+- macOS remains CI-only until it has a native desktop smoke and packaging contract.
 
 The application is intentionally read-only. It is an observability client, not a second task editor.
 
@@ -33,15 +34,15 @@ The application is intentionally read-only. It is an observability client, not a
 - Assignee and owner filters, including explicit unassigned work.
 - Dependency, progress, activity, comment, and containment details.
 - Keyboard expansion and accessible Tree/TreeItem semantics.
-- Automatic one-minute refresh while preserving valid view state.
+- Automatic one-minute background refresh while no inspector is open; manual refresh preserves readable inspector state.
 
 ## Requirements
 
 - A Beads workspace.
 - `bd` installed and configured for that workspace.
-- Preview compatibility is verified with `bd 1.1.2`. Later versions may work, but their JSON contract has not yet been certified.
+- Preview compatibility is verified with `bd 1.2.2`.
 
-A self-contained release does not require the .NET runtime. Building from source requires the .NET 10 SDK.
+A self-contained release does not require the .NET runtime. Building from source requires the .NET 10 SDK; creating release archives also requires Python 3.
 
 ## Install and run on Windows
 
@@ -53,7 +54,7 @@ A self-contained release does not require the .NET runtime. Building from source
 Windows may warn about an unsigned preview binary. Before running it, compare the archive hash with the `.sha256` file attached to the same release:
 
 ```powershell
-Get-FileHash -Algorithm SHA256 .\bdeyes-0.1.0-preview.1-win-x64.zip
+Get-FileHash -Algorithm SHA256 .\bdeyes-0.1.0-preview.2-win-x64.zip
 ```
 
 You can open a workspace directly from the extracted archive:
@@ -61,6 +62,25 @@ You can open a workspace directly from the extracted archive:
 ```powershell
 .\Bdeyes.exe --workspace C:\path\to\workspace
 ```
+
+## Install and run on Linux
+
+1. Install and configure [`bd`](https://github.com/gastownhall/beads).
+2. Download the `linux-x64` archive and its `.sha256` sidecar from the bdeyes GitHub release.
+3. Verify and extract the complete archive:
+
+```sh
+sha256sum --check bdeyes-0.1.0-preview.2-linux-x64.tar.gz.sha256
+tar -xzf bdeyes-0.1.0-preview.2-linux-x64.tar.gz
+```
+
+4. Launch bdeyes from a desktop session and choose a Beads workspace:
+
+```sh
+./Bdeyes --workspace /path/to/workspace
+```
+
+The archive is self-contained; a normal Linux desktop supplies the display and input libraries used by Avalonia.
 
 ## Finding `bd`
 
@@ -111,10 +131,14 @@ Run from source:
 dotnet run --project src/Bdeyes/Bdeyes.csproj -- --workspace /path/to/workspace
 ```
 
-Create the self-contained Windows preview archive and checksum:
+Create deterministic self-contained preview archives and SHA-256 sidecars:
 
 ```powershell
-powershell -NoProfile -File scripts/package-windows.ps1
+python scripts/package-preview.py --runtime win-x64
+```
+
+```sh
+python3 scripts/package-preview.py --runtime linux-x64
 ```
 
 Contributions should preserve the CLI-only read boundary and include behavioral coverage for any changed user-facing contract.

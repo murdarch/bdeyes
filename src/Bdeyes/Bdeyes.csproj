@@ -9,10 +9,10 @@
     <ApplicationTitle>bdeyes</ApplicationTitle>
     <ApplicationIcon>Assets\bdeyes.ico</ApplicationIcon>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Version>0.1.0-preview.1</Version>
+    <Version>0.1.0-preview.2</Version>
     <AssemblyVersion>0.1.0.0</AssemblyVersion>
     <FileVersion>0.1.0.0</FileVersion>
-    <InformationalVersion>0.1.0-preview.1</InformationalVersion>
+    <InformationalVersion>0.1.0-preview.2</InformationalVersion>
     <Product>bdeyes</Product>
     <Authors>bdeyes contributors</Authors>
     <Description>Read-only desktop observatory for Beads workspaces.</Description>

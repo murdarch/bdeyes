@@ -13,8 +13,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  windows-preview:
-    runs-on: windows-latest
+  package-preview:
+    name: package-${{ matrix.runtime }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            runtime: win-x64
+          - os: ubuntu-latest
+            runtime: linux-x64
 
     steps:
       - uses: actions/checkout@v4
@@ -25,40 +34,71 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Restore
         run: dotnet restore Bdeyes.slnx
 
       - name: Test release build
         run: dotnet test Bdeyes.slnx --configuration Release --no-restore
 
-      - name: Package Windows preview
-        shell: powershell
+      - name: Package preview
         env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: >-
+          python scripts/package-preview.py
+          --runtime ${{ matrix.runtime }}
+          --output-directory artifacts
+
+      - name: Upload packaged artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bdeyes-${{ github.ref_name }}-${{ matrix.runtime }}
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+
+  create-prerelease:
+    name: create-prerelease
+    needs: package-preview
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bdeyes-${{ github.ref_name }}-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           if (!$env:RELEASE_TAG.StartsWith("v", [StringComparison]::Ordinal)) {
               throw "Release tag must start with 'v'."
           }
           $version = $env:RELEASE_TAG.Substring(1)
-          ./scripts/package-windows.ps1 -Version $version -OutputDirectory artifacts
-
-      - name: Upload packaged artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: bdeyes-${{ github.ref_name }}-win-x64
-          path: artifacts/*
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Create GitHub prerelease
-        shell: powershell
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: |
-          $artifacts = Get-ChildItem -LiteralPath artifacts -File | ForEach-Object FullName
-          if ($artifacts.Count -ne 2) {
-              throw "Expected the preview archive and its checksum; found $($artifacts.Count) files."
+          $expected = @(
+              "bdeyes-$version-win-x64.zip",
+              "bdeyes-$version-win-x64.zip.sha256",
+              "bdeyes-$version-linux-x64.tar.gz",
+              "bdeyes-$version-linux-x64.tar.gz.sha256"
+          )
+          $actual = @(Get-ChildItem -LiteralPath artifacts -File)
+          if ($actual.Count -ne $expected.Count) {
+              throw "Expected $($expected.Count) release files; found $($actual.Count)."
+          }
+          $artifacts = foreach ($name in $expected) {
+              $path = Join-Path "artifacts" $name
+              if (!(Test-Path -LiteralPath $path -PathType Leaf)) {
+                  throw "Expected release artifact '$name' is missing."
+              }
+              $path
           }
           gh release create $env:RELEASE_TAG $artifacts `
               --repo $env:GITHUB_REPOSITORY `

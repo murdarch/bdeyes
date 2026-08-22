@@ -11,7 +11,7 @@ public sealed class BdSettingsTests
     {
         var viewModel = new MainViewModel();
 
-        Assert.Equal("bdeyes 0.1.0-preview.1", viewModel.AppVersionLabel);
+        Assert.Equal("bdeyes 0.1.0-preview.2", viewModel.AppVersionLabel);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class BdSettingsTests
             await viewModel.TestBdExecutableCommand.ExecuteAsync(null);
 
             Assert.True(viewModel.BdExecutableTestSucceeded);
-            Assert.Equal("bd 1.1.2", viewModel.BdExecutableVersionLabel);
+            Assert.Equal("bd 1.2.2", viewModel.BdExecutableVersionLabel);
             Assert.Equal(Path.GetFullPath(automatic), client.Executable);
 
             await viewModel.SaveBdSettingsCommand.ExecuteAsync(null);
@@ -156,7 +156,7 @@ public sealed class BdSettingsTests
         public Task<string> ProbeVersionAsync(
             string executable,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult("bd version 1.1.2 (test)");
+            Task.FromResult("bd version 1.2.2 (test)");
 
         public Task<BdWorkspaceSnapshot> LoadWorkspaceAsync(
             string workspacePath,

@@ -15,13 +15,29 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            runtime: win-x64
+          - os: macos-latest
+            runtime: ""
+          - os: ubuntu-latest
+            runtime: linux-x64
 
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - uses: actions/setup-python@v5
+        if: matrix.runtime != ''
+        with:
+          python-version: "3.12"
       - run: dotnet restore Bdeyes.slnx
       - run: dotnet build Bdeyes.slnx --configuration Release --no-restore
       - run: dotnet test Bdeyes.slnx --configuration Release --no-build
+      - name: Package preview
+        if: matrix.runtime != ''
+        run: >-
+          python scripts/package-preview.py
+          --runtime ${{ matrix.runtime }}
+          --output-directory "${{ runner.temp }}/bdeyes-artifacts"

@@ -480,7 +480,7 @@ public sealed class MainViewModelOutlineTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new BdWorkspaceSnapshot(
                 requestedWorkspacePath,
-                "bd 1.1.2",
+                "bd 1.2.2",
                 Now,
                 Issues,
                 new WorkspaceContentRevision(Issues.Count, _revision)));

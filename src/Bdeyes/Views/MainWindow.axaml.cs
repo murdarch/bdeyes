@@ -12,6 +12,7 @@ public partial class MainWindow : Window
 {
     private DispatcherTimer? _refreshTimer;
     private MainViewModel? _viewModel;
+    private string? _detailId;
 
     public MainWindow()
     {
@@ -38,7 +39,7 @@ public partial class MainWindow : Window
         };
         _refreshTimer.Tick += (_, _) =>
         {
-            if (viewModel.RefreshCommand.CanExecute(null))
+            if (!viewModel.HasSelection && viewModel.RefreshCommand.CanExecute(null))
             {
                 viewModel.RefreshCommand.Execute(null);
             }
@@ -54,6 +55,7 @@ public partial class MainWindow : Window
         {
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
             _viewModel = null;
+            _detailId = null;
         }
     }
 
@@ -94,7 +96,18 @@ public partial class MainWindow : Window
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
     {
-        if (eventArgs.PropertyName == nameof(MainViewModel.Detail) && _viewModel?.Detail is not null)
+        if (eventArgs.PropertyName != nameof(MainViewModel.Detail))
+        {
+            return;
+        }
+
+        var detailId = _viewModel?.Detail?.Id;
+        var selectionChanged = !string.Equals(
+            _detailId,
+            detailId,
+            StringComparison.OrdinalIgnoreCase);
+        _detailId = detailId;
+        if (detailId is not null && selectionChanged)
         {
             Dispatcher.UIThread.Post(
                 () => DetailScroller.Offset = default,

@@ -84,10 +84,11 @@ public sealed class BdClient : IConfigurableBdClient
         var versionTask = RunAsync(BdCommandFactory.Version(fullPath), cancellationToken);
         await Task.WhenAll(issuesTask, versionTask).ConfigureAwait(false);
 
+        var issuesJson = await issuesTask;
         IReadOnlyList<BeadIssue> issues;
         try
         {
-            issues = JsonSerializer.Deserialize<List<BeadIssue>>(await issuesTask, JsonOptions) ?? [];
+            issues = JsonSerializer.Deserialize<List<BeadIssue>>(issuesJson, JsonOptions) ?? [];
         }
         catch (JsonException exception)
         {
@@ -98,7 +99,8 @@ public sealed class BdClient : IConfigurableBdClient
             fullPath,
             (await versionTask).Trim(),
             _timeProvider.GetUtcNow(),
-            issues);
+            issues,
+            ContentRevisionOf(issuesJson));
     }
 
     public async Task<BeadIssue> LoadDetailAsync(
@@ -230,6 +232,26 @@ public sealed class BdClient : IConfigurableBdClient
         StandardOutputEncoding = Encoding.UTF8,
         StandardErrorEncoding = Encoding.UTF8,
     };
+
+    private static WorkspaceContentRevision ContentRevisionOf(string content)
+    {
+        const ulong offsetBasis = 14695981039346656037;
+        const ulong prime = 1099511628211;
+        var fingerprint = offsetBasis;
+
+        unchecked
+        {
+            foreach (var character in content)
+            {
+                fingerprint ^= (byte)character;
+                fingerprint *= prime;
+                fingerprint ^= (byte)(character >> 8);
+                fingerprint *= prime;
+            }
+        }
+
+        return new WorkspaceContentRevision(content.Length, fingerprint);
+    }
 
     private static string ValidateWorkspace(string workspacePath)
     {

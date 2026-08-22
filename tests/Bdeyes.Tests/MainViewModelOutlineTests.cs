@@ -289,6 +289,104 @@ public sealed class MainViewModelOutlineTests
     }
 
     [Fact]
+    public async Task RefreshKeepsLoadedInspectorVisibleUntilReplacementIsReady()
+    {
+        var settingsPath = TemporarySettingsPath();
+        try
+        {
+            var original = Issue("mine") with
+            {
+                Comments =
+                [
+                    Comment("old", Now.AddMinutes(-1)),
+                ],
+            };
+            var client = new StubBdClient([original]);
+            var viewModel = new MainViewModel(
+                client,
+                new UserSettingsStore(settingsPath),
+                "C:/workspace");
+            await viewModel.InitializeAsync();
+            viewModel.SelectedNavigation = Navigation(viewModel, DashboardMode.All);
+            viewModel.SelectedRow = Assert.Single(viewModel.VisibleRows);
+
+            var loadedDetail = Assert.IsType<BeadDetailViewModel>(viewModel.Detail);
+            Assert.Equal("old", Assert.Single(loadedDetail.Comments).Text);
+
+            var updated = original with
+            {
+                UpdatedAt = Now.AddMinutes(1),
+                Comments =
+                [
+                    Comment("new", Now),
+                    Comment("old", Now.AddMinutes(-1)),
+                ],
+            };
+            client.Issues = [updated];
+            var detailGate = new TaskCompletionSource<BeadIssue>();
+            client.NextDetailResult = detailGate.Task;
+
+            var refresh = viewModel.RefreshCommand.ExecuteAsync(null);
+            try
+            {
+                Assert.Equal(2, client.DetailLoadCount);
+                Assert.Same(loadedDetail, viewModel.Detail);
+                Assert.Equal("old", Assert.Single(viewModel.Detail!.Comments).Text);
+                Assert.False(refresh.IsCompleted);
+            }
+            finally
+            {
+                detailGate.TrySetResult(updated);
+            }
+
+            await refresh;
+            Assert.NotSame(loadedDetail, viewModel.Detail);
+            Assert.Equal(["new", "old"], viewModel.Detail!.Comments.Select(comment => comment.Text));
+        }
+        finally
+        {
+            DeleteSettingsDirectory(settingsPath);
+        }
+    }
+
+    [Fact]
+    public async Task NoOpRefreshReusesProjectionAndLoadedInspector()
+    {
+        var settingsPath = TemporarySettingsPath();
+        try
+        {
+            var issue = Issue("mine") with
+            {
+                Comments =
+                [
+                    Comment("old", Now),
+                ],
+            };
+            var client = new StubBdClient([issue]);
+            var viewModel = new MainViewModel(
+                client,
+                new UserSettingsStore(settingsPath),
+                "C:/workspace");
+            await viewModel.InitializeAsync();
+            viewModel.SelectedNavigation = Navigation(viewModel, DashboardMode.All);
+            viewModel.SelectedRow = Assert.Single(viewModel.VisibleRows);
+
+            var selectedRow = viewModel.SelectedRow;
+            var loadedDetail = viewModel.Detail;
+            await viewModel.RefreshCommand.ExecuteAsync(null);
+
+            Assert.Same(selectedRow, viewModel.SelectedRow);
+            Assert.Same(loadedDetail, viewModel.Detail);
+            Assert.Equal("old", Assert.Single(viewModel.Detail!.Comments).Text);
+            Assert.Equal(1, client.DetailLoadCount);
+        }
+        finally
+        {
+            DeleteSettingsDirectory(settingsPath);
+        }
+    }
+
+    [Fact]
     public void InspectorBreadcrumbFollowsAuthoritativeContainment()
     {
         var issues = Hierarchy();
@@ -333,6 +431,16 @@ public sealed class MainViewModelOutlineTests
             UpdatedAt = Now,
         };
 
+    private static BeadComment Comment(string text, DateTimeOffset createdAt) =>
+        new()
+        {
+            Id = text,
+            IssueId = "mine",
+            Author = "Justice",
+            Text = text,
+            CreatedAt = createdAt,
+        };
+
     private static string TemporarySettingsPath() =>
         Path.Combine(
             Path.GetTempPath(),
@@ -350,7 +458,22 @@ public sealed class MainViewModelOutlineTests
 
     private sealed class StubBdClient(IReadOnlyList<BeadIssue> issues) : IBdClient
     {
-        public IReadOnlyList<BeadIssue> Issues { get; set; } = issues;
+        private IReadOnlyList<BeadIssue> _issues = issues;
+        private ulong _revision = 1;
+
+        public IReadOnlyList<BeadIssue> Issues
+        {
+            get => _issues;
+            set
+            {
+                _issues = value;
+                _revision++;
+            }
+        }
+
+        public int DetailLoadCount { get; private set; }
+
+        public Task<BeadIssue>? NextDetailResult { get; set; }
 
         public Task<BdWorkspaceSnapshot> LoadWorkspaceAsync(
             string requestedWorkspacePath,
@@ -359,12 +482,18 @@ public sealed class MainViewModelOutlineTests
                 requestedWorkspacePath,
                 "bd 1.1.2",
                 Now,
-                Issues));
+                Issues,
+                new WorkspaceContentRevision(Issues.Count, _revision)));
 
         public Task<BeadIssue> LoadDetailAsync(
             string requestedWorkspacePath,
             string issueId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(Issues.Single(issue => issue.Id == issueId));
+            CancellationToken cancellationToken = default)
+        {
+            DetailLoadCount++;
+            var nextResult = NextDetailResult;
+            NextDetailResult = null;
+            return nextResult ?? Task.FromResult(Issues.Single(issue => issue.Id == issueId));
+        }
     }
 }

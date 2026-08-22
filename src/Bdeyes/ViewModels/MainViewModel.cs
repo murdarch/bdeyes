@@ -25,6 +25,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private BeadAnalyzer? _analyzer;
     private CancellationTokenSource? _detailCancellation;
     private bool _initialized;
+    private bool _restoringSelectedRow;
     private bool _rebuildingPersonFilters;
     private Task _settingsSaveTail = Task.CompletedTask;
     private string? _lastWorkspacePath;
@@ -498,24 +499,44 @@ public sealed partial class MainViewModel : ViewModelBase
 
     partial void OnSelectedRowChanged(BeadRowViewModel? value)
     {
-        _detailCancellation?.Cancel();
-        _detailCancellation?.Dispose();
-        _detailCancellation = null;
+        if (_restoringSelectedRow)
+        {
+            return;
+        }
 
+        CancelDetailLoad();
         if (value is null || _analyzer is null || _snapshot is null)
         {
             Detail = null;
             return;
         }
 
-        var detail = new BeadDetailViewModel(
-            value,
-            _analyzer,
+        BeginDetailLoad(value);
+    }
+
+    private void CancelDetailLoad()
+    {
+        _detailCancellation?.Cancel();
+        _detailCancellation?.Dispose();
+        _detailCancellation = null;
+    }
+
+    private BeadDetailViewModel CreateDetail(BeadRowViewModel row) =>
+        new(
+            row,
+            _analyzer!,
             NavigateToIssue,
             RevealInOutline);
+
+    private void BeginDetailLoad(BeadRowViewModel row)
+    {
+        var detail = CreateDetail(row);
         Detail = detail;
         _detailCancellation = new CancellationTokenSource();
-        _ = LoadDetailAsync(detail, _snapshot.WorkspacePath, _detailCancellation.Token);
+        _ = LoadDetailAsync(
+            detail,
+            _snapshot!.WorkspacePath,
+            _detailCancellation.Token);
     }
 
     private void ApplyBdExecutableResolution(BdExecutableResolution resolution)
@@ -570,7 +591,15 @@ public sealed partial class MainViewModel : ViewModelBase
         try
         {
             var snapshot = await _bdClient.LoadWorkspaceAsync(workspacePath);
-            ApplySnapshot(snapshot);
+            if (CanReuseSnapshotProjection(snapshot))
+            {
+                ApplySnapshotMetadata(snapshot);
+            }
+            else
+            {
+                await ApplySnapshotAsync(snapshot);
+            }
+
             if (persist)
             {
                 await QueuePersistViewStateAsync();
@@ -586,9 +615,44 @@ public sealed partial class MainViewModel : ViewModelBase
         }
     }
 
-    private void ApplySnapshot(BdWorkspaceSnapshot snapshot)
+    private bool CanReuseSnapshotProjection(BdWorkspaceSnapshot snapshot) =>
+        _snapshot is { } current &&
+        SamePath(current.WorkspacePath, snapshot.WorkspacePath) &&
+        current.ContentRevision == snapshot.ContentRevision;
+
+    private void ApplySnapshotMetadata(BdWorkspaceSnapshot snapshot)
+    {
+        _snapshot = snapshot;
+        WorkspaceName = new DirectoryInfo(snapshot.WorkspacePath).Name;
+        WorkspacePath = snapshot.WorkspacePath;
+        var unresolvedCount = _allRows.Count(row => !row.Facts.IsClosed);
+        WorkspaceSummary = $"{snapshot.Issues.Count:N0} beads · {unresolvedCount:N0} unresolved";
+        BdVersionLabel = FormatVersion(snapshot.BdVersion);
+        _lastWorkspacePath = snapshot.WorkspacePath;
+        if (_bdClient is IConfigurableBdClient client)
+        {
+            _testedBdExecutable = client.Executable;
+            SetBdExecutableDraft(client.Executable);
+            BdExecutableVersionLabel = BdVersionLabel;
+            BdExecutableStatusMessage = "Connected through this bd executable.";
+            BdExecutableTestSucceeded = true;
+        }
+        LastRefreshedLabel = $"refreshed {snapshot.LoadedAt.ToLocalTime():t}";
+        SnapshotLoaded = true;
+    }
+
+    private async Task ApplySnapshotAsync(BdWorkspaceSnapshot snapshot)
     {
         var selectedId = SelectedRow?.Id;
+        var previousDetail = Detail;
+        var preserveDetail =
+            selectedId is not null &&
+            previousDetail is not null &&
+            string.Equals(selectedId, previousDetail.Id, StringComparison.OrdinalIgnoreCase) &&
+            _snapshot is { } current &&
+            SamePath(current.WorkspacePath, snapshot.WorkspacePath);
+
+        CancelDetailLoad();
         _snapshot = snapshot;
         _analyzer = new BeadAnalyzer(snapshot.Issues, snapshot.LoadedAt);
         _allRows.Clear();
@@ -636,45 +700,70 @@ public sealed partial class MainViewModel : ViewModelBase
         RebuildPersonFilters();
 
         _expandedIds.IntersectWith(_rowsById.Keys);
-        WorkspaceName = new DirectoryInfo(snapshot.WorkspacePath).Name;
-        WorkspacePath = snapshot.WorkspacePath;
-        var unresolvedCount = _allRows.Count(row => !row.Facts.IsClosed);
-        WorkspaceSummary = $"{snapshot.Issues.Count:N0} beads · {unresolvedCount:N0} unresolved";
-        BdVersionLabel = FormatVersion(snapshot.BdVersion);
-        _lastWorkspacePath = snapshot.WorkspacePath;
-        if (_bdClient is IConfigurableBdClient client)
+        ApplySnapshotMetadata(snapshot);
+
+        BeadRowViewModel? selected;
+        _restoringSelectedRow = true;
+        try
         {
-            _testedBdExecutable = client.Executable;
-            SetBdExecutableDraft(client.Executable);
-            BdExecutableVersionLabel = BdVersionLabel;
-            BdExecutableStatusMessage = "Connected through this bd executable.";
-            BdExecutableTestSucceeded = true;
+            UpdateCounts();
+            ApplyFilter();
+            selected =
+                selectedId is not null &&
+                _includedIds.Contains(selectedId) &&
+                _rowsById.TryGetValue(selectedId, out var refreshedSelection)
+                    ? refreshedSelection
+                    : null;
+            SelectedRow = selected;
         }
-        LastRefreshedLabel = $"refreshed {snapshot.LoadedAt.ToLocalTime():t}";
-        SnapshotLoaded = true;
+        finally
+        {
+            _restoringSelectedRow = false;
+        }
 
-        UpdateCounts();
-        ApplyFilter();
+        if (selected is null)
+        {
+            Detail = null;
+            return;
+        }
 
-        SelectedRow =
-            selectedId is not null &&
-            _includedIds.Contains(selectedId) &&
-            _rowsById.TryGetValue(selectedId, out var selected)
-                ? selected
-                : null;
+        if (!preserveDetail || previousDetail is null)
+        {
+            BeginDetailLoad(selected);
+            return;
+        }
+
+        var replacement = CreateDetail(selected);
+        _detailCancellation = new CancellationTokenSource();
+        await LoadDetailAsync(
+            replacement,
+            snapshot.WorkspacePath,
+            _detailCancellation.Token,
+            previousDetail);
     }
 
     private async Task LoadDetailAsync(
         BeadDetailViewModel target,
         string workspacePath,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        BeadDetailViewModel? visibleUntilLoaded = null)
     {
         try
         {
             var detail = await _bdClient.LoadDetailAsync(workspacePath, target.Id, cancellationToken);
-            if (ReferenceEquals(Detail, target))
+            if (visibleUntilLoaded is null)
+            {
+                if (ReferenceEquals(Detail, target))
+                {
+                    target.ApplyLoadedDetail(detail);
+                }
+            }
+            else if (
+                ReferenceEquals(Detail, visibleUntilLoaded) &&
+                string.Equals(SelectedRow?.Id, target.Id, StringComparison.OrdinalIgnoreCase))
             {
                 target.ApplyLoadedDetail(detail);
+                Detail = target;
             }
         }
         catch (OperationCanceledException)
@@ -682,9 +771,16 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         catch (Exception exception)
         {
-            if (ReferenceEquals(Detail, target))
+            if (visibleUntilLoaded is null)
             {
-                target.ApplyError(FriendlyMessage(exception));
+                if (ReferenceEquals(Detail, target))
+                {
+                    target.ApplyError(FriendlyMessage(exception));
+                }
+            }
+            else if (ReferenceEquals(Detail, visibleUntilLoaded))
+            {
+                visibleUntilLoaded.ApplyError(FriendlyMessage(exception));
             }
         }
     }

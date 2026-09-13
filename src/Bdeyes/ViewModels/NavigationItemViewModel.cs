@@ -10,6 +10,7 @@ public enum DashboardMode
     Aging,
     All,
     Epics,
+    Memories,
 }
 
 public sealed partial class NavigationItemViewModel : ViewModelBase

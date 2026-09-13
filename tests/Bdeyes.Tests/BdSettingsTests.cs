@@ -11,7 +11,7 @@ public sealed class BdSettingsTests
     {
         var viewModel = new MainViewModel();
 
-        Assert.Equal("bdeyes 0.1.0-preview.2", viewModel.AppVersionLabel);
+        Assert.Equal("bdeyes 0.1.0-preview.3", viewModel.AppVersionLabel);
     }
 
     [Fact]
@@ -162,6 +162,11 @@ public sealed class BdSettingsTests
             string workspacePath,
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("No workspace should be loaded in this test.");
+
+        public Task<IReadOnlyList<BdMemoryEntry>> LoadMemoriesAsync(
+            string workspacePath,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("No memories should be loaded in this test.");
 
         public Task<BeadIssue> LoadDetailAsync(
             string workspacePath,

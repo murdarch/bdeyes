@@ -192,6 +192,21 @@
             <Setter Property="Background" Value="{StaticResource AccentDimBrush}" />
             <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
         </Style>
+        <Style Selector="Button.nav">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="10,9" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.nav:pointerover">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+        </Style>
+        <Style Selector="Button.nav.selected">
+            <Setter Property="Background" Value="{StaticResource AccentDimBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+        </Style>
 
         <Style Selector="ListBox.rows">
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
@@ -313,6 +328,36 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+                    <TextBlock Text="KNOWLEDGE"
+                               Classes="section-title"
+                               Margin="10,20,0,8" />
+                    <Button Classes="nav"
+                            Classes.selected="{Binding IsMemoryMode}"
+                            Command="{Binding ShowMemoriesCommand}"
+                            IsEnabled="{Binding HasSnapshot}"
+                            AutomationProperties.Name="Browse durable memories">
+                        <Grid ColumnDefinitions="24,*,Auto">
+                            <TextBlock Text="▤"
+                                       Foreground="{StaticResource AccentBrush}"
+                                       FontSize="13"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1"
+                                       Text="Memories"
+                                       FontSize="12.5"
+                                       FontWeight="Medium"
+                                       VerticalAlignment="Center" />
+                            <Border Grid.Column="2"
+                                    MinWidth="26"
+                                    CornerRadius="10"
+                                    Background="#202D39"
+                                    Padding="6,2">
+                                <TextBlock Text="{Binding MemoryCountLabel}"
+                                           HorizontalAlignment="Center"
+                                           FontSize="10"
+                                           Classes="muted" />
+                            </Border>
+                        </Grid>
+                    </Button>
                 </StackPanel>
 
                 <StackPanel Grid.Row="3" Spacing="10">
@@ -362,11 +407,20 @@
                     BorderThickness="0,0,0,1"
                     Padding="26,15">
                 <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-                    <TextBox Text="{Binding SearchText, Mode=TwoWay}"
-                             Classes="search"
-                             PlaceholderText="Search id, title, owner, label…"
-                             AutomationProperties.Name="Search beads"
-                             VerticalAlignment="Center" />
+                    <Grid>
+                        <TextBox Text="{Binding SearchText, Mode=TwoWay}"
+                                 Classes="search"
+                                 IsVisible="{Binding !IsMemoryMode}"
+                                 PlaceholderText="Search id, title, owner, label…"
+                                 AutomationProperties.Name="Search beads"
+                                 VerticalAlignment="Center" />
+                        <TextBox Text="{Binding MemorySearchText, Mode=TwoWay}"
+                                 Classes="search"
+                                 IsVisible="{Binding IsMemoryMode}"
+                                 PlaceholderText="Search memory key or text…"
+                                 AutomationProperties.Name="Search memories"
+                                 VerticalAlignment="Center" />
+                    </Grid>
                     <Button Grid.Column="1"
                             Classes="quiet"
                             Margin="10,0,0,0"
@@ -661,7 +715,7 @@
 
             <!-- Operational views -->
             <Grid Grid.Row="2"
-                  IsVisible="{Binding ShowWorkspaceSurface}"
+                  IsVisible="{Binding ShowBeadSurface}"
                   RowDefinitions="Auto,Auto,Auto,*"
                   Margin="22,23,22,0">
                 <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
@@ -981,12 +1035,129 @@
                 </Grid>
 
             </Grid>
+            <!-- Durable memory browser -->
+            <Grid Grid.Row="2"
+                  IsVisible="{Binding ShowMemorySurface}"
+                  RowDefinitions="Auto,*"
+                  Margin="22,23,22,0">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding ViewEyebrow}" Classes="eyebrow" />
+                        <TextBlock Text="{Binding ViewTitle}" Classes="display" />
+                        <TextBlock Text="{Binding ViewDescription}"
+                                   Classes="muted"
+                                   FontSize="12.5" />
+                    </StackPanel>
+                    <Border Grid.Column="1"
+                            VerticalAlignment="Bottom"
+                            Background="{StaticResource SurfaceBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="13"
+                            Padding="11,5">
+                        <TextBlock Text="{Binding ResultCountLabel}"
+                                   Classes="muted"
+                                   FontSize="10.5" />
+                    </Border>
+                </Grid>
+
+                <Grid Grid.Row="1"
+                      RowDefinitions="Auto,*"
+                      Margin="0,18,0,0">
+                    <Border Grid.Row="0"
+                            Background="#111A23"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1,1,1,0"
+                            CornerRadius="9,9,0,0"
+                            Padding="13,7">
+                        <Grid ColumnDefinitions="250,*">
+                            <TextBlock Text="KEY"
+                                       Classes="section-title"
+                                       FontSize="9" />
+                            <TextBlock Grid.Column="1"
+                                       Text="MEMORY"
+                                       Classes="section-title"
+                                       FontSize="9" />
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="1">
+                        <ListBox x:Name="MemoryList"
+                                 ItemsSource="{Binding VisibleMemories}"
+                                 SelectedItem="{Binding SelectedMemory, Mode=TwoWay}"
+                                 Classes="rows"
+                                 AutomationProperties.Name="Durable ledger memories"
+                                 Padding="0"
+                                 CornerRadius="0,0,9,9"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel />
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:MemoryRowViewModel">
+                                    <Grid Height="52"
+                                          ColumnDefinitions="250,*"
+                                          AutomationProperties.Name="{Binding AutomationName}">
+                                        <Border Width="3"
+                                                HorizontalAlignment="Left"
+                                                Background="{StaticResource AccentBrush}" />
+                                        <TextBlock Margin="13,0,14,0"
+                                                   Text="{Binding Key}"
+                                                   Foreground="{StaticResource AccentBrush}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip.Tip="{Binding Key}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1"
+                                                   Margin="0,0,13,0"
+                                                   Text="{Binding Preview}"
+                                                   Classes="muted"
+                                                   FontSize="10.5"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip.Tip="{Binding Preview}"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <StackPanel IsVisible="{Binding IsResultEmpty}"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Spacing="7">
+                            <Border Width="42"
+                                    Height="42"
+                                    HorizontalAlignment="Center"
+                                    CornerRadius="14"
+                                    Background="{StaticResource SurfaceBrush}">
+                                <TextBlock Text="·"
+                                           FontSize="31"
+                                           Foreground="{StaticResource TextFaintBrush}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Margin="0,-11,0,0" />
+                            </Border>
+                            <TextBlock Text="{Binding EmptyTitle}"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center" />
+                            <TextBlock Text="{Binding EmptyDescription}"
+                                       Classes="muted"
+                                       FontSize="11.5"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Grid>
         </Grid>
 
         <!-- Persistent detail pane -->
         <Border Grid.Column="2"
                 Width="400"
-                IsVisible="{Binding HasSelection}"
+                IsVisible="{Binding HasBeadSelection}"
                 Background="{StaticResource RailBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1,0,0,0">
@@ -1335,6 +1506,79 @@
                                    FontSize="10.5" />
                     </StackPanel>
                 </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <Border Grid.Column="2"
+                Width="520"
+                IsVisible="{Binding HasMemorySelection}"
+                Background="{StaticResource RailBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1,0,0,0">
+            <Grid RowDefinitions="Auto,Auto,*">
+                <Border BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="19,15">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="MEMORY" Classes="section-title" />
+                            <TextBlock Text="{Binding SelectedMemory.Key}"
+                                       Foreground="{StaticResource AccentBrush}"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       AutomationProperties.Name="Selected memory key" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Classes="icon"
+                                Command="{Binding CloseDetailCommand}"
+                                Content="×"
+                                AutomationProperties.Name="Close memory"
+                                ToolTip.Tip="Close memory (Esc)"
+                                VerticalAlignment="Top" />
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="1"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="19,11">
+                    <Grid ColumnDefinitions="*,Auto,Auto">
+                        <TextBlock Text="Exact durable value from bd"
+                                   Classes="faint"
+                                   FontSize="9.5"
+                                   VerticalAlignment="Center" />
+                        <Button Grid.Column="1"
+                                Classes="quiet"
+                                Content="Copy key"
+                                Click="CopyMemoryKey_Click"
+                                AutomationProperties.Name="Copy memory key"
+                                Padding="10,6"
+                                Margin="0,0,8,0" />
+                        <Button Grid.Column="2"
+                                Classes="quiet"
+                                Content="Copy text"
+                                Click="CopyMemoryText_Click"
+                                AutomationProperties.Name="Copy memory text"
+                                Padding="10,6" />
+                    </Grid>
+                </Border>
+
+                <TextBox Grid.Row="2"
+                         x:Name="MemoryBody"
+                         Text="{Binding SelectedMemory.Value, Mode=OneWay}"
+                         IsReadOnly="True"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         Background="Transparent"
+                         Foreground="#C9D4DE"
+                         BorderThickness="0"
+                         Padding="20,18,20,28"
+                         FontSize="11.5"
+                         VerticalContentAlignment="Top"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         AutomationProperties.Name="Memory text" />
             </Grid>
         </Border>
     </Grid>

@@ -11,6 +11,7 @@ public sealed class BdCommandFactoryTests
         {
             BdCommandFactory.ListIssues("C:/workspace with spaces"),
             BdCommandFactory.ShowIssue("C:/workspace with spaces", "town-42"),
+            BdCommandFactory.ListMemories("C:/workspace with spaces"),
             BdCommandFactory.Version("C:/workspace with spaces"),
             BdCommandFactory.ProbeVersion(),
         };
@@ -26,6 +27,16 @@ public sealed class BdCommandFactoryTests
 
         Assert.Equal(
             ["--readonly", "-C", "/workspace", "list", "--all", "--limit", "0", "--flat", "--json"],
+            command);
+    }
+
+    [Fact]
+    public void MemoryCommandRequestsReadOnlyJsonCatalog()
+    {
+        var command = BdCommandFactory.ListMemories("/workspace");
+
+        Assert.Equal(
+            ["--readonly", "-C", "/workspace", "memories", "--json"],
             command);
     }
 

@@ -8,6 +8,10 @@ namespace Bdeyes.Services;
 public interface IBdClient
 {
     Task<BdWorkspaceSnapshot> LoadWorkspaceAsync(string workspacePath, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<BdMemoryEntry>> LoadMemoriesAsync(
+        string workspacePath,
+        CancellationToken cancellationToken = default);
+
 
     Task<BeadIssue> LoadDetailAsync(string workspacePath, string issueId, CancellationToken cancellationToken = default);
 }
@@ -102,6 +106,53 @@ public sealed class BdClient : IConfigurableBdClient
             issues,
             ContentRevisionOf(issuesJson));
     }
+    public async Task<IReadOnlyList<BdMemoryEntry>> LoadMemoriesAsync(
+        string workspacePath,
+        CancellationToken cancellationToken = default)
+    {
+        var fullPath = ValidateWorkspace(workspacePath);
+        var output = await RunAsync(BdCommandFactory.ListMemories(fullPath), cancellationToken)
+            .ConfigureAwait(false);
+        return ParseMemories(output);
+    }
+
+    internal static IReadOnlyList<BdMemoryEntry> ParseMemories(string output)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(output);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                throw new BdClientException("bd returned memory data in an unexpected shape.");
+            }
+
+            var memories = new List<BdMemoryEntry>();
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (property.NameEquals("schema_version"))
+                {
+                    continue;
+                }
+
+                if (property.Value.ValueKind != JsonValueKind.String)
+                {
+                    throw new BdClientException(
+                        $"bd returned a non-text value for memory '{property.Name}'.");
+                }
+
+                memories.Add(new BdMemoryEntry(
+                    property.Name,
+                    property.Value.GetString() ?? string.Empty));
+            }
+
+            return memories;
+        }
+        catch (JsonException exception)
+        {
+            throw new BdClientException("bd returned memory data that bdeyes could not read.", exception);
+        }
+    }
+
 
     public async Task<BeadIssue> LoadDetailAsync(
         string workspacePath,
@@ -281,6 +332,15 @@ public static class BdCommandFactory
         "--flat",
         "--json",
     ];
+    public static IReadOnlyList<string> ListMemories(string workspacePath) =>
+    [
+        "--readonly",
+        "-C",
+        workspacePath,
+        "memories",
+        "--json",
+    ];
+
 
     public static IReadOnlyList<string> ShowIssue(string workspacePath, string issueId) =>
     [

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -39,7 +40,9 @@ public partial class MainWindow : Window
         };
         _refreshTimer.Tick += (_, _) =>
         {
-            if (!viewModel.HasSelection && viewModel.RefreshCommand.CanExecute(null))
+            if (!viewModel.IsMemoryMode &&
+                !viewModel.HasSelection &&
+                viewModel.RefreshCommand.CanExecute(null))
             {
                 viewModel.RefreshCommand.Execute(null);
             }
@@ -96,6 +99,12 @@ public partial class MainWindow : Window
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
     {
+        if (eventArgs.PropertyName == nameof(MainViewModel.SelectedMemory))
+        {
+            MemoryBody.CaretIndex = 0;
+            return;
+        }
+
         if (eventArgs.PropertyName != nameof(MainViewModel.Detail))
         {
             return;
@@ -112,6 +121,44 @@ public partial class MainWindow : Window
             Dispatcher.UIThread.Post(
                 () => DetailScroller.Offset = default,
                 DispatcherPriority.Background);
+        }
+    }
+
+    private async void CopyMemoryKey_Click(object? sender, RoutedEventArgs eventArgs)
+    {
+        if (DataContext is MainViewModel { SelectedMemory: { } memory } viewModel)
+        {
+            await CopyToClipboardAsync(memory.Key, "memory key", viewModel);
+        }
+    }
+
+    private async void CopyMemoryText_Click(object? sender, RoutedEventArgs eventArgs)
+    {
+        if (DataContext is MainViewModel { SelectedMemory: { } memory } viewModel)
+        {
+            await CopyToClipboardAsync(memory.Value, "memory text", viewModel);
+        }
+    }
+
+    private async Task CopyToClipboardAsync(
+        string text,
+        string description,
+        MainViewModel viewModel)
+    {
+        var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+        if (clipboard is null)
+        {
+            viewModel.ErrorMessage = $"The desktop clipboard is unavailable; could not copy {description}.";
+            return;
+        }
+
+        try
+        {
+            await clipboard.SetTextAsync(text);
+        }
+        catch (Exception exception)
+        {
+            viewModel.ErrorMessage = $"Could not copy {description}: {exception.Message}";
         }
     }
 

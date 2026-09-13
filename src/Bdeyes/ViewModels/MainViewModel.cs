@@ -19,6 +19,7 @@ public sealed partial class MainViewModel : ViewModelBase
         new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _expandedIds = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _includedIds = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<MemoryRowViewModel> _allMemories = [];
     private readonly object _settingsSaveSync = new();
 
     private BdWorkspaceSnapshot? _snapshot;
@@ -33,6 +34,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private string? _testedBdExecutable;
     private bool _bdExecutableDraftIsAutomatic;
     private bool _updatingBdExecutableDraft;
+    private string? _memoryWorkspacePath;
 
     public MainViewModel()
         : this(new BdClient(), new UserSettingsStore(), null)
@@ -82,11 +84,15 @@ public sealed partial class MainViewModel : ViewModelBase
 
     public ObservableCollection<BeadRowViewModel> VisibleRows { get; } = [];
 
+    public ObservableCollection<MemoryRowViewModel> VisibleMemories { get; } = [];
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSnapshot))]
     [NotifyPropertyChangedFor(nameof(HasNoSnapshot))]
     [NotifyPropertyChangedFor(nameof(ShowFirstRunSurface))]
     [NotifyPropertyChangedFor(nameof(ShowWorkspaceSurface))]
+    [NotifyPropertyChangedFor(nameof(ShowBeadSurface))]
+    [NotifyPropertyChangedFor(nameof(ShowMemorySurface))]
     public partial bool SnapshotLoaded { get; set; }
 
     [ObservableProperty]
@@ -115,6 +121,8 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowFirstRunSurface))]
     [NotifyPropertyChangedFor(nameof(ShowWorkspaceSurface))]
+    [NotifyPropertyChangedFor(nameof(ShowBeadSurface))]
+    [NotifyPropertyChangedFor(nameof(ShowMemorySurface))]
     public partial bool IsBdSettingsOpen { get; set; }
 
     [ObservableProperty]
@@ -144,6 +152,17 @@ public sealed partial class MainViewModel : ViewModelBase
     public partial string SearchText { get; set; } = string.Empty;
 
     [ObservableProperty]
+    public partial string MemorySearchText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowBeadSurface))]
+    [NotifyPropertyChangedFor(nameof(ShowMemorySurface))]
+    [NotifyPropertyChangedFor(nameof(HasBeadSelection))]
+    [NotifyPropertyChangedFor(nameof(HasMemorySelection))]
+    [NotifyPropertyChangedFor(nameof(HasSelection))]
+    public partial bool IsMemoryMode { get; set; }
+
+    [ObservableProperty]
     public partial PersonFilterOption? SelectedAssigneeFilter { get; set; }
 
     [ObservableProperty]
@@ -156,7 +175,13 @@ public sealed partial class MainViewModel : ViewModelBase
     public partial BeadRowViewModel? SelectedRow { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasMemorySelection))]
     [NotifyPropertyChangedFor(nameof(HasSelection))]
+    public partial MemoryRowViewModel? SelectedMemory { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelection))]
+    [NotifyPropertyChangedFor(nameof(HasBeadSelection))]
     public partial BeadDetailViewModel? Detail { get; set; }
 
     [ObservableProperty]
@@ -194,6 +219,12 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial int StaleCount { get; set; }
 
+    [ObservableProperty]
+    public partial int MemoryCount { get; set; }
+
+    [ObservableProperty]
+    public partial string MemoryCountLabel { get; set; } = "…";
+
     public bool HasSnapshot => SnapshotLoaded;
 
     public bool HasNoSnapshot => !SnapshotLoaded;
@@ -201,10 +232,17 @@ public sealed partial class MainViewModel : ViewModelBase
 
     public bool ShowWorkspaceSurface => HasSnapshot && !IsBdSettingsOpen;
 
+    public bool ShowBeadSurface => ShowWorkspaceSurface && !IsMemoryMode;
+
+    public bool ShowMemorySurface => ShowWorkspaceSurface && IsMemoryMode;
 
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
 
-    public bool HasSelection => Detail is not null;
+    public bool HasBeadSelection => !IsMemoryMode && Detail is not null;
+
+    public bool HasMemorySelection => IsMemoryMode && SelectedMemory is not null;
+
+    public bool HasSelection => HasBeadSelection || HasMemorySelection;
 
     private bool CanRefresh => _snapshot is not null && !IsLoading;
     private bool CanTestBdExecutable =>
@@ -248,14 +286,18 @@ public sealed partial class MainViewModel : ViewModelBase
         }
     }
 
-    public Task OpenWorkspaceAsync(string workspacePath)
+    public async Task OpenWorkspaceAsync(string workspacePath)
     {
         if (_snapshot is null || !SamePath(_snapshot.WorkspacePath, workspacePath))
         {
             _expandedIds.Clear();
         }
 
-        return LoadWorkspaceCoreAsync(workspacePath, persist: true);
+        await LoadWorkspaceCoreAsync(workspacePath, persist: true);
+        if (IsMemoryMode && _snapshot is not null && SamePath(_snapshot.WorkspacePath, workspacePath))
+        {
+            await EnsureMemoriesLoadedAsync(_snapshot.WorkspacePath);
+        }
     }
 
     public bool ExpandOrSelectFirstChild()
@@ -319,7 +361,16 @@ public sealed partial class MainViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanRefresh))]
     private async Task RefreshAsync()
     {
-        if (_snapshot is not null)
+        if (_snapshot is null)
+        {
+            return;
+        }
+
+        if (IsMemoryMode)
+        {
+            await LoadMemoriesCoreAsync(_snapshot.WorkspacePath);
+        }
+        else
         {
             await LoadWorkspaceCoreAsync(_snapshot.WorkspacePath, persist: false);
         }
@@ -412,12 +463,17 @@ public sealed partial class MainViewModel : ViewModelBase
         _explicitBdExecutablePath = _bdExecutableDraftIsAutomatic
             ? null
             : _testedBdExecutable;
+        ClearMemories();
         await QueuePersistViewStateAsync();
         IsBdSettingsOpen = false;
 
         if (_snapshot is not null)
         {
             await LoadWorkspaceCoreAsync(_snapshot.WorkspacePath, persist: false);
+            if (IsMemoryMode)
+            {
+                await EnsureMemoriesLoadedAsync(_snapshot.WorkspacePath);
+            }
         }
     }
 
@@ -426,7 +482,17 @@ public sealed partial class MainViewModel : ViewModelBase
     private void DismissError() => ErrorMessage = string.Empty;
 
     [RelayCommand]
-    private void CloseDetail() => SelectedRow = null;
+    private void CloseDetail()
+    {
+        if (IsMemoryMode)
+        {
+            SelectedMemory = null;
+        }
+        else
+        {
+            SelectedRow = null;
+        }
+    }
 
     [RelayCommand]
     private void ShowNow() => SelectNavigation(DashboardMode.Now);
@@ -439,6 +505,21 @@ public sealed partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private void ShowAging() => SelectNavigation(DashboardMode.Aging);
+
+    [RelayCommand]
+    private async Task ShowMemoriesAsync()
+    {
+        if (_snapshot is null)
+        {
+            return;
+        }
+
+        IsMemoryMode = true;
+        SelectedNavigation = null;
+        UpdateViewCopy(DashboardMode.Memories);
+        ApplyMemoryFilter();
+        await EnsureMemoriesLoadedAsync(_snapshot.WorkspacePath);
+    }
 
     partial void OnIsLoadingChanged(bool value)
     {
@@ -475,6 +556,14 @@ public sealed partial class MainViewModel : ViewModelBase
 
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
+    partial void OnMemorySearchTextChanged(string value)
+    {
+        if (IsMemoryMode)
+        {
+            ApplyMemoryFilter();
+        }
+    }
+
     partial void OnSelectedAssigneeFilterChanged(PersonFilterOption? value)
     {
         if (!_rebuildingPersonFilters)
@@ -493,7 +582,13 @@ public sealed partial class MainViewModel : ViewModelBase
 
     partial void OnSelectedNavigationChanged(NavigationItemViewModel? value)
     {
-        UpdateViewCopy(value?.Mode ?? DashboardMode.Now);
+        if (value is null)
+        {
+            return;
+        }
+
+        IsMemoryMode = false;
+        UpdateViewCopy(value.Mode);
         ApplyFilter();
     }
 
@@ -591,6 +686,10 @@ public sealed partial class MainViewModel : ViewModelBase
         try
         {
             var snapshot = await _bdClient.LoadWorkspaceAsync(workspacePath);
+            if (!SamePath(_snapshot?.WorkspacePath, snapshot.WorkspacePath))
+            {
+                ClearMemories();
+            }
             if (CanReuseSnapshotProjection(snapshot))
             {
                 ApplySnapshotMetadata(snapshot);
@@ -612,6 +711,113 @@ public sealed partial class MainViewModel : ViewModelBase
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    private Task EnsureMemoriesLoadedAsync(string workspacePath) =>
+        SamePath(_memoryWorkspacePath, workspacePath)
+            ? Task.CompletedTask
+            : LoadMemoriesCoreAsync(workspacePath);
+
+    private async Task LoadMemoriesCoreAsync(string workspacePath)
+    {
+        IsLoading = true;
+        ErrorMessage = string.Empty;
+        var selectedKey = SelectedMemory?.Key;
+
+        try
+        {
+            var memories = await _bdClient.LoadMemoriesAsync(workspacePath);
+            if (_snapshot is null || !SamePath(_snapshot.WorkspacePath, workspacePath))
+            {
+                return;
+            }
+
+            _allMemories.Clear();
+            _allMemories.AddRange(
+                memories
+                    .Select(memory => new MemoryRowViewModel(memory))
+                    .OrderBy(memory => memory.Key, StringComparer.OrdinalIgnoreCase));
+            _memoryWorkspacePath = _snapshot.WorkspacePath;
+            MemoryCount = _allMemories.Count;
+            MemoryCountLabel = MemoryCount.ToString("N0");
+            SelectedMemory = null;
+            ApplyMemoryFilter();
+
+            if (selectedKey is not null)
+            {
+                SelectedMemory = VisibleMemories.FirstOrDefault(memory =>
+                    string.Equals(memory.Key, selectedKey, StringComparison.OrdinalIgnoreCase));
+            }
+
+            LastRefreshedLabel = $"refreshed {DateTimeOffset.Now:t}";
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            ErrorMessage = FriendlyMessage(exception);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private void ClearMemories()
+    {
+        _memoryWorkspacePath = null;
+        _allMemories.Clear();
+        VisibleMemories.Clear();
+        SelectedMemory = null;
+        MemoryCount = 0;
+        MemoryCountLabel = "…";
+        if (IsMemoryMode)
+        {
+            ApplyMemoryFilter();
+        }
+    }
+
+    private void ApplyMemoryFilter()
+    {
+        var query = MemorySearchText.Trim();
+        var matches = query.Length == 0
+            ? _allMemories
+            : _allMemories.Where(memory => memory.Matches(query)).ToList();
+        SynchronizeVisibleMemories(matches);
+        if (SelectedMemory is not null && !VisibleMemories.Contains(SelectedMemory))
+        {
+            SelectedMemory = null;
+        }
+
+        ResultCountLabel = query.Length == 0
+            ? $"{matches.Count:N0} memor{(matches.Count == 1 ? "y" : "ies")}"
+            : $"{matches.Count:N0} match{(matches.Count == 1 ? string.Empty : "es")} · {_allMemories.Count:N0} memories";
+        IsResultEmpty = matches.Count == 0;
+    }
+
+    private void SynchronizeVisibleMemories(IReadOnlyList<MemoryRowViewModel> memories)
+    {
+        for (var index = 0; index < memories.Count; index++)
+        {
+            var memory = memories[index];
+            if (index < VisibleMemories.Count && ReferenceEquals(VisibleMemories[index], memory))
+            {
+                continue;
+            }
+
+            var currentIndex = VisibleMemories.IndexOf(memory);
+            if (currentIndex >= 0)
+            {
+                VisibleMemories.Move(currentIndex, index);
+            }
+            else
+            {
+                VisibleMemories.Insert(index, memory);
+            }
+        }
+
+        while (VisibleMemories.Count > memories.Count)
+        {
+            VisibleMemories.RemoveAt(VisibleMemories.Count - 1);
         }
     }
 
@@ -878,6 +1084,12 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private void ApplyFilter()
     {
+        if (IsMemoryMode)
+        {
+            ApplyMemoryFilter();
+            return;
+        }
+
         if (_analyzer is null)
         {
             VisibleRows.Clear();
@@ -1118,6 +1330,12 @@ public sealed partial class MainViewModel : ViewModelBase
                 $"Stale paths with {BeadAnalyzer.StaleAfter.TotalDays:0}+ days since activity.",
                 "Nothing has gone quiet",
                 "Every unresolved bead has recent activity."),
+            DashboardMode.Memories => (
+                "KNOWLEDGE",
+                "What the ledger remembers",
+                "Durable operational knowledge, exactly as stored by bd.",
+                "No memories found",
+                "This workspace has no durable memories matching the search."),
             DashboardMode.Epics => (
                 "SHAPE",
                 "The larger work",
@@ -1173,6 +1391,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private void SelectNavigation(DashboardMode mode)
     {
+        IsMemoryMode = false;
         var navigation = NavigationItems.First(item => item.Mode == mode);
         if (ReferenceEquals(SelectedNavigation, navigation))
         {

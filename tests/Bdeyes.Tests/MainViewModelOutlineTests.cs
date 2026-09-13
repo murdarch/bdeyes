@@ -485,6 +485,11 @@ public sealed class MainViewModelOutlineTests
                 Issues,
                 new WorkspaceContentRevision(Issues.Count, _revision)));
 
+        public Task<IReadOnlyList<BdMemoryEntry>> LoadMemoriesAsync(
+            string requestedWorkspacePath,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<BdMemoryEntry>>([]);
+
         public Task<BeadIssue> LoadDetailAsync(
             string requestedWorkspacePath,
             string issueId,

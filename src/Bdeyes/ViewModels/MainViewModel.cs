@@ -35,6 +35,11 @@ public sealed partial class MainViewModel : ViewModelBase
     private bool _bdExecutableDraftIsAutomatic;
     private bool _updatingBdExecutableDraft;
     private string? _memoryWorkspacePath;
+    private CancellationTokenSource? _liveUpdateCancellation;
+    private Task _liveUpdateTask = Task.CompletedTask;
+    private BdIssueEventState? _liveEventState;
+    private SynchronizationContext? _uiContext;
+    private long _liveUpdateGeneration;
 
     public MainViewModel()
         : this(new BdClient(), new UserSettingsStore(), null)
@@ -118,6 +123,9 @@ public sealed partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial string LastRefreshedLabel { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool IsLiveUpdating { get; set; }
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowFirstRunSurface))]
     [NotifyPropertyChangedFor(nameof(ShowWorkspaceSurface))]
@@ -260,6 +268,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
     public async Task InitializeAsync()
     {
+        _uiContext ??= SynchronizationContext.Current;
         if (_initialized)
         {
             return;
@@ -680,11 +689,26 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private async Task LoadWorkspaceCoreAsync(string workspacePath, bool persist)
     {
+        _uiContext ??= SynchronizationContext.Current;
+        await StopLiveUpdatesAsync();
         IsLoading = true;
         ErrorMessage = string.Empty;
 
         try
         {
+            BdEventBaseline? baseline = null;
+            if (_bdClient is IBdEventClient eventClient)
+            {
+                try
+                {
+                    baseline = await eventClient.ReadEventBaselineAsync(workspacePath);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    baseline = BdEventBaseline.Unavailable(FriendlyMessage(exception));
+                }
+            }
+
             var snapshot = await _bdClient.LoadWorkspaceAsync(workspacePath);
             if (!SamePath(_snapshot?.WorkspacePath, snapshot.WorkspacePath))
             {
@@ -697,6 +721,17 @@ public sealed partial class MainViewModel : ViewModelBase
             else
             {
                 await ApplySnapshotAsync(snapshot);
+            }
+
+            if (baseline is { IsAvailable: true } &&
+                _bdClient is IBdEventClient availableEventClient)
+            {
+                StartLiveUpdates(availableEventClient, snapshot, baseline.Sequence);
+            }
+            else
+            {
+                IsLiveUpdating = false;
+                LastRefreshedLabel = $"polling · refreshed {snapshot.LoadedAt.ToLocalTime():t}";
             }
 
             if (persist)
@@ -712,6 +747,196 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             IsLoading = false;
         }
+    }
+
+    private void StartLiveUpdates(
+        IBdEventClient eventClient,
+        BdWorkspaceSnapshot snapshot,
+        long sequence)
+    {
+        var cancellation = new CancellationTokenSource();
+        var generation = ++_liveUpdateGeneration;
+        _liveUpdateCancellation = cancellation;
+        _liveEventState = new BdIssueEventState(snapshot.Issues, sequence);
+        IsLiveUpdating = true;
+        LastRefreshedLabel = $"live · refreshed {snapshot.LoadedAt.ToLocalTime():t}";
+        _liveUpdateTask = MonitorLiveUpdatesAsync(
+            eventClient,
+            snapshot.WorkspacePath,
+            sequence,
+            generation,
+            cancellation.Token);
+    }
+
+    private async Task MonitorLiveUpdatesAsync(
+        IBdEventClient eventClient,
+        string workspacePath,
+        long sequence,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var record in eventClient
+                               .WatchEventsAsync(workspacePath, sequence, cancellationToken)
+                               .ConfigureAwait(false))
+            {
+                await RunOnUiContextAsync(
+                    () => ApplyLiveEventAsync(record, workspacePath, generation));
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            await RunOnUiContextAsync(
+                () => HandleLiveUpdateFailureAsync(
+                    workspacePath,
+                    generation,
+                    exception));
+        }
+    }
+
+    private async Task ApplyLiveEventAsync(
+        BdEventRecord record,
+        string workspacePath,
+        long generation)
+    {
+        if (generation != _liveUpdateGeneration ||
+            _liveEventState is not { } state ||
+            _snapshot is not { } current ||
+            !SamePath(current.WorkspacePath, workspacePath))
+        {
+            return;
+        }
+
+        var result = state.Apply(record);
+        if (result == BdEventApplyResult.Duplicate)
+        {
+            return;
+        }
+
+        if (result == BdEventApplyResult.Rebaseline)
+        {
+            throw new BdClientException(
+                $"The events journal skipped or changed at sequence {record.Sequence}; a full refresh is required.");
+        }
+
+        var issues = state.Issues;
+        var snapshot = current with
+        {
+            LoadedAt = DateTimeOffset.Now,
+            Issues = issues,
+            ContentRevision = new WorkspaceContentRevision(
+                issues.Count,
+                unchecked((ulong)state.Sequence ^ 0xBDE1E50000000000UL)),
+        };
+        await ApplySnapshotAsync(snapshot);
+        LastRefreshedLabel = $"live · updated {snapshot.LoadedAt.ToLocalTime():t}";
+    }
+
+    private async Task HandleLiveUpdateFailureAsync(
+        string workspacePath,
+        long generation,
+        Exception exception)
+    {
+        if (generation != _liveUpdateGeneration ||
+            _snapshot is null ||
+            !SamePath(_snapshot.WorkspacePath, workspacePath))
+        {
+            return;
+        }
+
+        IsLiveUpdating = false;
+        _liveEventState = null;
+        LastRefreshedLabel = $"polling fallback · {FriendlyMessage(exception)}";
+        IsLoading = true;
+        try
+        {
+            var snapshot = await _bdClient.LoadWorkspaceAsync(workspacePath);
+            if (generation != _liveUpdateGeneration)
+            {
+                return;
+            }
+
+            if (CanReuseSnapshotProjection(snapshot))
+            {
+                ApplySnapshotMetadata(snapshot);
+            }
+            else
+            {
+                await ApplySnapshotAsync(snapshot);
+            }
+
+            LastRefreshedLabel =
+                $"polling fallback · refreshed {snapshot.LoadedAt.ToLocalTime():t}";
+        }
+        catch (Exception refreshException)
+            when (refreshException is not OperationCanceledException)
+        {
+            ErrorMessage = FriendlyMessage(refreshException);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    internal async Task StopLiveUpdatesAsync()
+    {
+        var cancellation = _liveUpdateCancellation;
+        var task = _liveUpdateTask;
+        _liveUpdateCancellation = null;
+        _liveUpdateTask = Task.CompletedTask;
+        _liveEventState = null;
+        _liveUpdateGeneration++;
+        IsLiveUpdating = false;
+
+        if (cancellation is null)
+        {
+            return;
+        }
+
+        cancellation.Cancel();
+        try
+        {
+            await task;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            cancellation.Dispose();
+        }
+    }
+
+    private Task RunOnUiContextAsync(Func<Task> action)
+    {
+        if (_uiContext is null ||
+            ReferenceEquals(SynchronizationContext.Current, _uiContext))
+        {
+            return action();
+        }
+
+        var completion = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        _uiContext.Post(
+            async _ =>
+            {
+                try
+                {
+                    await action();
+                    completion.SetResult(true);
+                }
+                catch (Exception exception)
+                {
+                    completion.SetException(exception);
+                }
+            },
+            null);
+        return completion.Task;
     }
 
     private Task EnsureMemoriesLoadedAsync(string workspacePath) =>

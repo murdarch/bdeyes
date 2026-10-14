@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using Bdeyes.Models;
@@ -27,7 +29,19 @@ public interface IConfigurableBdClient : IBdClient
         CancellationToken cancellationToken = default);
 }
 
-public sealed class BdClient : IConfigurableBdClient
+public interface IBdEventClient
+{
+    Task<BdEventBaseline> ReadEventBaselineAsync(
+        string workspacePath,
+        CancellationToken cancellationToken = default);
+
+    IAsyncEnumerable<BdEventRecord> WatchEventsAsync(
+        string workspacePath,
+        long sequence,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class BdClient : IConfigurableBdClient, IBdEventClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -180,6 +194,180 @@ public sealed class BdClient : IConfigurableBdClient
         }
     }
 
+    public async Task<BdEventBaseline> ReadEventBaselineAsync(
+        string workspacePath,
+        CancellationToken cancellationToken = default)
+    {
+        var fullPath = ValidateWorkspace(workspacePath);
+        using var process = StartProcess(
+            _executable,
+            BdCommandFactory.EventBaseline(fullPath));
+        var standardError = process.StandardError.ReadToEndAsync(cancellationToken);
+        var nonEventOutput = new StringBuilder();
+        var sequence = 0L;
+
+        try
+        {
+            while (await process.StandardOutput.ReadLineAsync(cancellationToken)
+                   is { } line)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                if (TryParseEventLine(line, out var record))
+                {
+                    sequence = Math.Max(sequence, record.Sequence);
+                }
+                else
+                {
+                    nonEventOutput.AppendLine(line);
+                }
+            }
+
+            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            var error = await standardError.ConfigureAwait(false);
+            if (error.Contains(
+                    "events journal is disabled",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return BdEventBaseline.Unavailable("The events journal is disabled.");
+            }
+
+            if (process.ExitCode == 0)
+            {
+                return BdEventBaseline.Available(sequence);
+            }
+
+            var diagnostic = string.Concat(nonEventOutput, error);
+            return TryReadTruncatedHead(diagnostic, out var head)
+                ? BdEventBaseline.Available(head)
+                : BdEventBaseline.Unavailable(FirstDiagnosticLine(
+                    diagnostic,
+                    $"bd events exited with code {process.ExitCode}."));
+        }
+        catch (OperationCanceledException)
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+
+            throw;
+        }
+    }
+
+    public async IAsyncEnumerable<BdEventRecord> WatchEventsAsync(
+        string workspacePath,
+        long sequence,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var fullPath = ValidateWorkspace(workspacePath);
+        using var process = StartProcess(
+            _executable,
+            BdCommandFactory.WatchEvents(fullPath, sequence));
+        var standardError = process.StandardError.ReadToEndAsync(cancellationToken);
+
+        try
+        {
+            while (await process.StandardOutput.ReadLineAsync(cancellationToken)
+                   is { } line)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                if (!TryParseEventLine(line, out var record))
+                {
+                    if (TryReadTruncatedHead(line, out _))
+                    {
+                        throw new BdClientException(
+                            "The events journal checkpoint was truncated; a full refresh is required.");
+                    }
+
+                    throw new BdClientException(
+                        "bd returned an unreadable events-journal record.");
+                }
+
+                yield return record;
+            }
+
+            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            var error = await standardError.ConfigureAwait(false);
+            throw new BdClientException(FirstDiagnosticLine(
+                error,
+                process.ExitCode == 0
+                    ? "The bd events stream ended unexpectedly."
+                    : $"bd events exited with code {process.ExitCode}."));
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+    }
+
+    internal static bool TryParseEventLine(string line, out BdEventRecord record)
+    {
+        record = null!;
+        try
+        {
+            using var document = JsonDocument.Parse(line);
+            if (document.RootElement.TryGetProperty("code", out _))
+            {
+                return false;
+            }
+
+            var parsed = document.RootElement.Deserialize<BdEventRecord>(JsonOptions);
+            if (parsed is null ||
+                parsed.Sequence <= 0 ||
+                string.IsNullOrWhiteSpace(parsed.Operation) ||
+                string.IsNullOrWhiteSpace(parsed.IssueId))
+            {
+                return false;
+            }
+
+            record = parsed;
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TryReadTruncatedHead(string content, out long head)
+    {
+        head = 0;
+        try
+        {
+            using var document = JsonDocument.Parse(content.Trim());
+            var root = document.RootElement;
+            return root.TryGetProperty("code", out var code) &&
+                string.Equals(
+                    code.GetString(),
+                    "events_journal_truncated",
+                    StringComparison.Ordinal) &&
+                root.TryGetProperty("head", out var value) &&
+                value.TryGetInt64(out head);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static string FirstDiagnosticLine(string content, string fallback) =>
+        content
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .FirstOrDefault(line => line.Length > 0) ??
+        fallback;
+
     private Task<string> RunAsync(
         IReadOnlyList<string> arguments,
         CancellationToken cancellationToken) =>
@@ -190,24 +378,7 @@ public sealed class BdClient : IConfigurableBdClient
         IReadOnlyList<string> arguments,
         CancellationToken cancellationToken)
     {
-        using var process = new Process
-        {
-            StartInfo = CreateStartInfo(executable, arguments),
-        };
-
-        try
-        {
-            if (!process.Start())
-            {
-                throw new BdClientException("The bd process did not start.");
-            }
-        }
-        catch (Exception exception) when (exception is not BdClientException)
-        {
-            throw new BdClientException(
-                $"Could not start '{executable}'. Install bd or choose its executable in Settings.",
-                exception);
-        }
+        using var process = StartProcess(executable, arguments);
 
         try
         {
@@ -236,6 +407,33 @@ public sealed class BdClient : IConfigurableBdClient
             }
 
             throw;
+        }
+    }
+
+    private Process StartProcess(
+        string executable,
+        IReadOnlyList<string> arguments)
+    {
+        var process = new Process
+        {
+            StartInfo = CreateStartInfo(executable, arguments),
+        };
+
+        try
+        {
+            if (!process.Start())
+            {
+                throw new BdClientException("The bd process did not start.");
+            }
+
+            return process;
+        }
+        catch (Exception exception) when (exception is not BdClientException)
+        {
+            process.Dispose();
+            throw new BdClientException(
+                $"Could not start '{executable}'. Install bd or choose its executable in Settings.",
+                exception);
         }
     }
 
@@ -352,6 +550,31 @@ public static class BdCommandFactory
         "--include-comments",
         "--include-dependents",
         "--json",
+    ];
+
+    public static IReadOnlyList<string> EventBaseline(string workspacePath) =>
+    [
+        "--readonly",
+        "-C",
+        workspacePath,
+        "--json",
+        "events",
+        "tail",
+        "--since",
+        "0",
+    ];
+
+    public static IReadOnlyList<string> WatchEvents(string workspacePath, long sequence) =>
+    [
+        "--readonly",
+        "-C",
+        workspacePath,
+        "--json",
+        "events",
+        "tail",
+        "--since",
+        sequence.ToString(CultureInfo.InvariantCulture),
+        "--follow",
     ];
 
     public static IReadOnlyList<string> Version(string workspacePath) =>

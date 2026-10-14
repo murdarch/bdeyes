@@ -35,15 +35,20 @@ The application is intentionally read-only. It is an observability client, not a
 - Dependency, progress, activity, comment, and containment details.
 - A lazy-loaded durable-memory index with key/value search and an exact full-text reader.
 - Keyboard expansion and accessible Tree/TreeItem semantics.
-- Automatic one-minute background refresh for work views while no inspector is open; manual refresh preserves readable selections.
+- Live issue updates from the Beads 1.3 event journal, with the existing one-minute/manual snapshot refresh as a compatibility and recovery fallback.
 
 ## Requirements
 
 - A Beads workspace.
 - `bd` installed and configured for that workspace.
-- Preview compatibility is verified with `bd 1.2.2`.
+- Preview compatibility is verified with `bd 1.2.2` polling and the `bd 1.3.0` events journal.
 
 A self-contained release does not require the .NET runtime. Building from source requires the .NET 10 SDK; creating release archives also requires Python 3.
+
+With Beads 1.3.0 or newer, bdeyes follows `bd events tail --follow` when the
+workspace has `events-journal: true`. It never enables the journal itself.
+Older Beads versions, journal-disabled workspaces, truncated checkpoints, and
+failed streams fall back to read-only snapshots without preventing startup.
 
 ## Install and run on Windows
 

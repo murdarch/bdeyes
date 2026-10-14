@@ -12,6 +12,8 @@ public sealed class BdCommandFactoryTests
             BdCommandFactory.ListIssues("C:/workspace with spaces"),
             BdCommandFactory.ShowIssue("C:/workspace with spaces", "town-42"),
             BdCommandFactory.ListMemories("C:/workspace with spaces"),
+            BdCommandFactory.EventBaseline("C:/workspace with spaces"),
+            BdCommandFactory.WatchEvents("C:/workspace with spaces", 42),
             BdCommandFactory.Version("C:/workspace with spaces"),
             BdCommandFactory.ProbeVersion(),
         };
@@ -38,6 +40,36 @@ public sealed class BdCommandFactoryTests
         Assert.Equal(
             ["--readonly", "-C", "/workspace", "memories", "--json"],
             command);
+    }
+
+    [Fact]
+    public void EventCommandsRequestJsonLinesFromAnExplicitCheckpoint()
+    {
+        Assert.Equal(
+            [
+                "--readonly",
+                "-C",
+                "/workspace",
+                "--json",
+                "events",
+                "tail",
+                "--since",
+                "0",
+            ],
+            BdCommandFactory.EventBaseline("/workspace"));
+        Assert.Equal(
+            [
+                "--readonly",
+                "-C",
+                "/workspace",
+                "--json",
+                "events",
+                "tail",
+                "--since",
+                "42",
+                "--follow",
+            ],
+            BdCommandFactory.WatchEvents("/workspace", 42));
     }
 
     [Fact]

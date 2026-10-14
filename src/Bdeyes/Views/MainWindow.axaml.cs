@@ -40,7 +40,8 @@ public partial class MainWindow : Window
         };
         _refreshTimer.Tick += (_, _) =>
         {
-            if (!viewModel.IsMemoryMode &&
+            if (!viewModel.IsLiveUpdating &&
+                !viewModel.IsMemoryMode &&
                 !viewModel.HasSelection &&
                 viewModel.RefreshCommand.CanExecute(null))
             {
@@ -50,13 +51,14 @@ public partial class MainWindow : Window
         _refreshTimer.Start();
     }
 
-    private void OnClosed(object? sender, EventArgs eventArgs)
+    private async void OnClosed(object? sender, EventArgs eventArgs)
     {
         _refreshTimer?.Stop();
         _refreshTimer = null;
         if (_viewModel is not null)
         {
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            await _viewModel.StopLiveUpdatesAsync();
             _viewModel = null;
             _detailId = null;
         }

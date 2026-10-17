@@ -16,7 +16,7 @@ These screenshots come from a generated demo fixture. Every bead ID, title, pers
 
 ## Preview status
 
-bdeyes is currently a `0.1.0-preview.3` project.
+bdeyes is currently a `0.1.0-preview.4` project.
 
 - Windows 10/11 x64 and Linux x64 are supported preview binary targets.
 - Windows behavior is exercised against a live Beads workspace with native UI Automation.
@@ -41,7 +41,7 @@ The application is intentionally read-only. It is an observability client, not a
 
 - A Beads workspace.
 - `bd` installed and configured for that workspace.
-- Preview compatibility is verified with `bd 1.2.2` polling and the `bd 1.3.0` events journal.
+- Preview compatibility is verified with `bd 1.2.2` polling and the `bd 1.3.1` events journal.
 
 A self-contained release does not require the .NET runtime. Building from source requires the .NET 10 SDK; creating release archives also requires Python 3.
 
@@ -60,7 +60,7 @@ failed streams fall back to read-only snapshots without preventing startup.
 Windows may warn about an unsigned preview binary. Before running it, compare the archive hash with the `.sha256` file attached to the same release:
 
 ```powershell
-Get-FileHash -Algorithm SHA256 .\bdeyes-0.1.0-preview.3-win-x64.zip
+Get-FileHash -Algorithm SHA256 .\bdeyes-0.1.0-preview.4-win-x64.zip
 ```
 
 You can open a workspace directly from the extracted archive:
@@ -76,8 +76,8 @@ You can open a workspace directly from the extracted archive:
 3. Verify and extract the complete archive:
 
 ```sh
-sha256sum --check bdeyes-0.1.0-preview.3-linux-x64.tar.gz.sha256
-tar -xzf bdeyes-0.1.0-preview.3-linux-x64.tar.gz
+sha256sum --check bdeyes-0.1.0-preview.4-linux-x64.tar.gz.sha256
+tar -xzf bdeyes-0.1.0-preview.4-linux-x64.tar.gz
 ```
 
 4. Launch bdeyes from a desktop session and choose a Beads workspace:

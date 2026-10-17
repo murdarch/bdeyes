@@ -11,7 +11,7 @@ public sealed class BdSettingsTests
     {
         var viewModel = new MainViewModel();
 
-        Assert.Equal("bdeyes 0.1.0-preview.3", viewModel.AppVersionLabel);
+        Assert.Equal("bdeyes 0.1.0-preview.4", viewModel.AppVersionLabel);
     }
 
     [Fact]
